@@ -267,7 +267,7 @@ Done!
 **Required workflow skills:**
 - **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
 - **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:requesting-code-review** - Code review template for reviewer subagents
+- **superpowers:code-review** - Code review with structural dependency analysis
 - **superpowers:finishing-a-development-branch** - Complete development after all tasks
 
 **Subagents should use:**

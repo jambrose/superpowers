@@ -26,6 +26,11 @@ If the spec covers multiple independent subsystems, it should have been broken i
 
 Before defining tasks, map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
 
+**If Agent Brain MCP tools are available:** run `agent_brain_get_dependencies` and
+`agent_brain_impact_analysis` on key symbols you plan to change. This reveals the
+actual dependency graph and blast radius — ensuring your file list is complete and
+your task boundaries don't split tightly-coupled code.
+
 - Design units with clear boundaries and well-defined interfaces. Each file should have one clear responsibility.
 - You reason best about code you can hold in context at once, and your edits are more reliable when files are focused. Prefer smaller, focused files over large ones that do too much.
 - Files that change together should live together. Split by responsibility, not by technical layer.

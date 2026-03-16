@@ -68,6 +68,9 @@ You MUST complete each phase before proceeding to the next.
    - Git diff, recent commits
    - New dependencies, config changes
    - Environmental differences
+   - **If Agent Brain MCP tools are available:** run `agent_brain_impact_analysis`
+     on recently changed symbols to map blast radius. Use `agent_brain_get_dependents`
+     to find all code affected by the change. This narrows the search space fast.
 
 4. **Gather Evidence in Multi-Component Systems**
 

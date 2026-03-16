@@ -110,7 +110,7 @@ Start a new session in your chosen platform and ask for something that should tr
 
 5. **test-driven-development** - Activates during implementation. Enforces RED-GREEN-REFACTOR: write failing test, watch it fail, write minimal code, watch it pass, commit. Deletes code written before tests.
 
-6. **requesting-code-review** - Activates between tasks. Reviews against plan, reports issues by severity. Critical issues block progress.
+6. **code-review** - Activates between tasks. Graph-aware review with structural dependency analysis. Reviews against plan, reports issues by severity. Critical issues block progress.
 
 7. **finishing-a-development-branch** - Activates when tasks complete. Verifies tests, presents options (merge/PR/keep/discard), cleans up worktree.
 
@@ -132,7 +132,9 @@ Start a new session in your chosen platform and ask for something that should tr
 - **writing-plans** - Detailed implementation plans
 - **executing-plans** - Batch execution with checkpoints
 - **dispatching-parallel-agents** - Concurrent subagent workflows
-- **requesting-code-review** - Pre-review checklist
+- **code-review** - Graph-aware code review with structural dependency analysis
+- **spec-reviewer** - Review implementation plans and design specs for precision and architectural alignment
+- **writing-execution-prompts** - Decompose plans into numbered atomic prompt files for agent dispatch
 - **receiving-code-review** - Responding to feedback
 - **using-git-worktrees** - Parallel development branches
 - **finishing-a-development-branch** - Merge/PR decision workflow

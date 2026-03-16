@@ -8,7 +8,7 @@ Use this template when dispatching a code quality reviewer subagent.
 
 ```
 Task tool (superpowers:code-reviewer):
-  Use template at requesting-code-review/code-reviewer.md
+  Use template at code-review/code-reviewer.md
 
   WHAT_WAS_IMPLEMENTED: [from implementer's report]
   PLAN_OR_REQUIREMENTS: Task N from [plan-file]
@@ -16,6 +16,9 @@ Task tool (superpowers:code-reviewer):
   HEAD_SHA: [current commit]
   DESCRIPTION: [task summary]
 ```
+
+**Structural analysis:** The reviewer should use Agent Brain MCP tools if available
+(`get_dependents`, `impact_analysis`) to verify all callers of changed interfaces are updated.
 
 **In addition to standard code quality concerns, the reviewer should check:**
 - Does each file have one clear responsibility with a well-defined interface?

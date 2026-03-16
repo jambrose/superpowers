@@ -16,6 +16,20 @@ Task tool (general-purpose):
 
     [Scene-setting: where this fits, dependencies, architectural context]
 
+    ## Structural Analysis Tools
+
+    If Agent Brain MCP tools are available in this project, you can use them to understand
+    the codebase structurally before and during implementation:
+    - `mcp__agent-brain__agent_brain_get_dependents(name, project)` — what depends on a symbol you're changing
+    - `mcp__agent-brain__agent_brain_get_dependencies(name, project)` — what a symbol depends on
+    - `mcp__agent-brain__agent_brain_impact_analysis(symbols, project)` — blast radius of your changes
+    - `mcp__agent-brain__agent_brain_search(query, project)` — find code by concept
+
+    **Use these when:** changing interfaces, renaming symbols, modifying base classes, or
+    when you need to understand what code depends on what you're modifying. After changing
+    an interface, run `get_dependents` to verify you've updated all callers.
+    These tools are optional — if unavailable, use grep/glob instead.
+
     ## Before You Begin
 
     If you have questions about:
