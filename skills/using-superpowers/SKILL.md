@@ -92,6 +92,12 @@ These thoughts mean STOP—you're rationalizing:
 | "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
 | "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
 
+## Skill Gotchas
+
+After invoking a skill, check `~/.claude/plugins/data/gotchas/<skill-name>.md` for known failure patterns. If the file exists, read it and factor the gotchas into your approach. These are accumulated from real usage and survive plugin updates.
+
+When you observe a recurring failure pattern while using a skill, append a bullet to the relevant gotchas file (create it if it doesn't exist).
+
 ## Skill Priority
 
 When multiple skills could apply, use this order:

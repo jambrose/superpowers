@@ -143,6 +143,10 @@ Wait for the user's response. If they request changes, make them and re-run the 
 - **Explore alternatives** - Always propose 2-3 approaches before settling
 - **Incremental validation** - Present design, get approval before moving on
 - **Be flexible** - Go back and clarify when something doesn't make sense
+- **Ground claims in code** - When proposing how to integrate with existing code, read
+  the actual files first. Don't assume APIs, signatures, or patterns — verify them.
+  "I think component X works like Y" must become "component X at file.py:42 does Y"
+  before it enters a design decision.
 
 ## Visual Companion
 
@@ -162,3 +166,11 @@ A question about a UI topic is not automatically a visual question. "What does p
 
 If they agree to the companion, read the detailed guide before proceeding:
 `skills/brainstorming/visual-companion.md`
+
+## Interactive Playground
+
+When the brainstorming topic involves **relationships, flows, or topology** — component graphs, message routing, dependency maps, architecture options — suggest the Playground plugin for interactive HTML exploration. Example prompt to the user:
+
+> "This involves a lot of interconnected parts. I can spin up an interactive playground where you can click through the relationships and explore visually. Want me to try that?"
+
+Use Playground when: the user would benefit from *manipulating* the visualization (clicking nodes, toggling options, exploring paths), not just *seeing* it. If a static diagram suffices, use the Visual Companion instead.
