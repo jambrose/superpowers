@@ -18,6 +18,46 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 **Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
 - (User preferences for plan location override this default)
 
+<HARD-GATE>
+Do NOT hand off the plan for execution, save it as "complete", or invoke any execution skill until the plan review loop has passed. A plan that has not been reviewed is not complete.
+</HARD-GATE>
+
+## Checklist
+
+You MUST create a task for each of these items and complete them in order:
+
+1. **Scope check** — if spec covers multiple independent subsystems, break into separate plans
+2. **Map file structure** — use Agent Brain (if available) for dependency/impact analysis
+3. **Write plan chunks** — tasks with exact file paths, code, commands, expected output
+4. **Plan review loop** — dispatch plan-document-reviewer subagent per chunk; fix issues and re-dispatch until approved (max 5 iterations, then surface to human)
+5. **Save and commit plan** — save to docs location, commit to git
+6. **Execution handoff** — present plan to user, proceed to execution
+
+## Process Flow
+
+```dot
+digraph writing_plans {
+    "Scope check" [shape=box];
+    "Map file structure" [shape=box];
+    "Write plan chunk" [shape=box];
+    "Plan review loop" [shape=box];
+    "Review passed?" [shape=diamond];
+    "More chunks?" [shape=diamond];
+    "Save and commit" [shape=box];
+    "Execution handoff" [shape=doublecircle];
+
+    "Scope check" -> "Map file structure";
+    "Map file structure" -> "Write plan chunk";
+    "Write plan chunk" -> "Plan review loop";
+    "Plan review loop" -> "Review passed?";
+    "Review passed?" -> "Plan review loop" [label="issues found,\nfix and re-dispatch"];
+    "Review passed?" -> "More chunks?" [label="approved"];
+    "More chunks?" -> "Write plan chunk" [label="yes"];
+    "More chunks?" -> "Save and commit" [label="no"];
+    "Save and commit" -> "Execution handoff";
+}
+```
+
 ## Scope Check
 
 If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
@@ -117,10 +157,12 @@ git commit -m "feat: add specific feature"
 
 ## Plan Review Loop
 
+**This step is MANDATORY — not advisory.** You MUST dispatch the reviewer for each chunk before proceeding.
+
 After completing each chunk of the plan:
 
 1. Dispatch plan-document-reviewer subagent (see plan-document-reviewer-prompt.md) with precisely crafted review context — never your session history. This keeps the reviewer focused on the plan, not your thought process.
-   - Provide: chunk content, path to spec document
+   - Provide: chunk content, path to spec document, path to codebase root
 2. If ❌ Issues Found:
    - Fix the issues in the chunk
    - Re-dispatch reviewer for that chunk
@@ -132,7 +174,7 @@ After completing each chunk of the plan:
 **Review loop guidance:**
 - Same agent that wrote the plan fixes it (preserves context)
 - If loop exceeds 5 iterations, surface to human for guidance
-- Reviewers are advisory - explain disagreements if you believe feedback is incorrect
+- Reviewers are advisory on style — but groundedness issues (wrong API names, missing functions, broken compatibility) MUST be fixed
 
 ## Execution Handoff
 
