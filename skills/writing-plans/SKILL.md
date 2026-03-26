@@ -29,9 +29,10 @@ You MUST create a task for each of these items and complete them in order:
 1. **Scope check** — if spec covers multiple independent subsystems, break into separate plans
 2. **Map file structure** — use Agent Brain (if available) for dependency/impact analysis
 3. **Write plan chunks** — tasks with exact file paths, code, commands, expected output
-4. **Plan review loop** — dispatch plan-document-reviewer subagent per chunk; fix issues and re-dispatch until approved (max 5 iterations, then surface to human)
-5. **Save and commit plan** — save to docs location, commit to git
-6. **Execution handoff** — present plan to user, proceed to execution
+4. **Self-review** — quick inline check for placeholders, spec coverage, type consistency
+5. **Plan review loop** — dispatch plan-document-reviewer subagent per chunk; fix issues and re-dispatch until approved (max 5 iterations, then surface to human)
+6. **Save and commit plan** — save to docs location, commit to git
+7. **Execution handoff** — present plan to user, proceed to execution
 
 ## Process Flow
 
@@ -40,7 +41,8 @@ digraph writing_plans {
     "Scope check" [shape=box];
     "Map file structure" [shape=box];
     "Write plan chunk" [shape=box];
-    "Plan review loop" [shape=box];
+    "Self-review\n(fix inline)" [shape=box];
+    "Plan review loop\n(subagent)" [shape=box];
     "Review passed?" [shape=diamond];
     "More chunks?" [shape=diamond];
     "Save and commit" [shape=box];
@@ -48,9 +50,10 @@ digraph writing_plans {
 
     "Scope check" -> "Map file structure";
     "Map file structure" -> "Write plan chunk";
-    "Write plan chunk" -> "Plan review loop";
-    "Plan review loop" -> "Review passed?";
-    "Review passed?" -> "Plan review loop" [label="issues found,\nfix and re-dispatch"];
+    "Write plan chunk" -> "Self-review\n(fix inline)";
+    "Self-review\n(fix inline)" -> "Plan review loop\n(subagent)";
+    "Plan review loop\n(subagent)" -> "Review passed?";
+    "Review passed?" -> "Plan review loop\n(subagent)" [label="issues found,\nfix and re-dispatch"];
     "Review passed?" -> "More chunks?" [label="approved"];
     "More chunks?" -> "Write plan chunk" [label="yes"];
     "More chunks?" -> "Save and commit" [label="no"];
@@ -94,7 +97,7 @@ This structure informs the task decomposition. Each task should produce self-con
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -148,18 +151,39 @@ git commit -m "feat: add specific feature"
 ```
 ````
 
+## No Placeholders
+
+Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
+- "TBD", "TODO", "implement later", "fill in details"
+- "Add appropriate error handling" / "add validation" / "handle edge cases"
+- "Write tests for the above" (without actual test code)
+- "Similar to Task N" (repeat the code — the engineer may be reading tasks out of order)
+- Steps that describe what to do without showing how (code blocks required for code steps)
+- References to types, functions, or methods not defined in any task
+
 ## Remember
 - Exact file paths always
-- Complete code in plan (not "add validation")
+- Complete code in every step — if a step changes code, show the code
 - Exact commands with expected output
-- Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
+
+## Self-Review (Pre-Screening)
+
+After writing each chunk, do a quick self-check before dispatching the subagent reviewer:
+
+**1. Spec coverage:** Skim each section/requirement in the spec. Can you point to a task that implements it? List any gaps.
+
+**2. Placeholder scan:** Search your plan for red flags — any of the patterns from the "No Placeholders" section above. Fix them.
+
+**3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
+
+Fix any issues inline, then proceed to the mandatory review loop.
 
 ## Plan Review Loop
 
 **This step is MANDATORY — not advisory.** You MUST dispatch the reviewer for each chunk before proceeding.
 
-After completing each chunk of the plan:
+After self-review, for each chunk of the plan:
 
 1. Dispatch plan-document-reviewer subagent (see plan-document-reviewer-prompt.md) with precisely crafted review context — never your session history. This keeps the reviewer focused on the plan, not your thought process.
    - Provide: chunk content, path to spec document, path to codebase root
@@ -178,17 +202,20 @@ After completing each chunk of the plan:
 
 ## Execution Handoff
 
-After saving the plan:
+After saving the plan, offer execution choice:
 
-**"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Ready to execute?"**
+**"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Two execution options:**
 
-**Execution path depends on harness capabilities:**
+**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
 
-**If harness has subagents (Claude Code, etc.):**
-- **REQUIRED:** Use superpowers:subagent-driven-development
-- Do NOT offer a choice - subagent-driven is the standard approach
+**2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
+
+**Which approach?"**
+
+**If Subagent-Driven chosen:**
+- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
 - Fresh subagent per task + two-stage review
 
-**If harness does NOT have subagents:**
-- Execute plan in current session using superpowers:executing-plans
+**If Inline Execution chosen:**
+- **REQUIRED SUB-SKILL:** Use superpowers:executing-plans
 - Batch execution with checkpoints for review

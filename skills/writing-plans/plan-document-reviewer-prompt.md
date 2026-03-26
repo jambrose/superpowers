@@ -4,7 +4,7 @@ Use this template when dispatching a plan document reviewer subagent.
 
 **Purpose:** Verify the plan chunk is complete, grounded in the actual codebase, and ready for a zero-context agent to execute.
 
-**Dispatch after:** Each plan chunk is written
+**Dispatch after:** Each plan chunk is written and self-reviewed.
 
 ```
 Agent tool (general-purpose):
@@ -24,8 +24,7 @@ Agent tool (general-purpose):
     | Completeness | TODOs, placeholders, `...` in code blocks, incomplete tasks, missing steps |
     | Spec Alignment | Chunk covers relevant spec requirements, no scope creep, every spec ID has a task |
     | Task Decomposition | Tasks atomic, clear boundaries, steps actionable |
-    | File Structure | Files have clear single responsibilities, split by responsibility not layer |
-    | Chunk Size | Each chunk under 1000 lines |
+    | Buildability | Could a zero-context engineer follow this without getting stuck? |
     | Groundedness | Code references real symbols, methods, and APIs — verify against codebase |
     | Parallel Safety | Changes don't break running system during parallel development |
     | Integration Points | Referenced functions are defined in the plan or exist in the codebase |
@@ -67,11 +66,16 @@ Agent tool (general-purpose):
 
     ## Severity Calibration
 
+    **Only flag issues that would cause real problems during implementation.**
+
     1. **High**: Would cause runtime failure for executing agent (wrong API, missing
        function, broken compatibility, placeholder code)
     2. **Medium**: Would cause confusion or require the agent to improvise (missing
        commit command, vague test, undefined fixture)
     3. **Low**: Style, naming, wording improvements
+
+    Approve unless there are High severity issues. Medium issues should be fixed
+    but don't block if the executing agent can reasonably resolve them.
 
     ## Output Format
 
@@ -82,8 +86,8 @@ Agent tool (general-purpose):
     **Issues (if any):**
     - [Severity] [Task X, Step Y]: [specific issue] - [why it matters]
 
-    **Recommendations (advisory):**
-    - [suggestions that don't block approval]
+    **Recommendations (advisory, do not block approval):**
+    - [suggestions for improvement]
 ```
 
 **Reviewer returns:** Status, Issues (if any), Recommendations
