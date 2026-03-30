@@ -44,9 +44,46 @@ Follow these phases precisely. Make a todo list first.
    Extract 5-10 key symbol names from the diff (class names, function names that were modified).
    If Agent Brain is unavailable, skip this step and note it in the output.
 
-6. **Find CLAUDE.md files:** root CLAUDE.md + any CLAUDE.md files in directories of changed files.
+6. **Classify changed files by type** (used to route conditional checks to agents):
 
-7. **Get PR metadata** (PR mode only): `gh pr view <number> --json title,body,author`
+   | Category | Match Criteria |
+   |----------|---------------|
+   | `frontend` | `.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.html`; also `.ts`/`.js` under `web/`, `frontend/`, `client/` |
+   | `backend-api` | Files containing route/endpoint definitions (`@app.post`, `router.get`, etc.) |
+   | `backend-logic` | `.py`, `.go`, `.rs`, `.java`, `.ts` not matching `frontend` or `backend-api` |
+   | `tests` | Files in `test/`, `tests/`, `__tests__/` dirs, or matching `test_*.py`, `*.test.ts`, `*.spec.ts` |
+   | `docs` | `.md`, `.txt`, `.rst`, or files in `docs/` |
+   | `config` | `.json`, `.yaml`, `.yml`, `.toml`, `.env`, `.ini` |
+
+   Extension and path matching is sufficient — do not read file contents for classification.
+   A file may match multiple categories. Pass this classification to all Phase 2 agents.
+
+7. **Dead code scan** (if Agent Brain MCP tools are available):
+   ```python
+   mcp__agent-brain__agent_brain_find_dead_code(project="<project-name>")
+   ```
+   Filter results to only include symbols defined in changed files. Ignore symbols in
+   unchanged files — project-wide dead code is not this PR's problem.
+   Pass filtered results to Agent 1 for verification.
+   If Agent Brain is unavailable, skip this step and note it in the output.
+
+8. **Find CLAUDE.md files:** root CLAUDE.md + any CLAUDE.md files in directories of changed files.
+
+9. **Get PR metadata** (PR mode only): `gh pr view <number> --json title,body,author,labels`
+
+10. **Extract scope metadata** (PR mode only):
+    From the PR title, body, and linked issues, extract:
+    - Stated purpose (first sentence or paragraph of body)
+    - Linked issue numbers (`#NNN` references or GitHub linked issues)
+    Pass this to Agent 3 for scope discipline checks.
+
+11. **Detect linked spec/template:**
+    Search for design docs that may apply to this change:
+    - Paths referenced in PR description
+    - Files in `docs/plans/` matching branch name or linked issue number
+    - Template files referenced in recent commits on the branch
+    If found, pass the spec path to Agent 1 for compliance checking. Do not read the
+    spec yourself — Agent 1 will read it.
 
 ### Phase 2 — Parallel Review
 
@@ -85,6 +122,23 @@ Your job is to verify that ALL dependents are properly handled. Specifically:
 - Are there new symbols that nothing references (potential dead code)?
 
 Use `get_dependents` and `get_symbol` to dig deeper on specific symbols.
+
+**Dead code verification:** You received filtered dead code candidates from pre-flight
+step 7. For each candidate, classify it:
+- **Introduced by this PR** (new symbol in the diff that nothing references) → flag as issue
+- **Pre-existing** (existed before this PR) → ignore, not this PR's problem
+- **False positive** (dynamically referenced, exported API, test fixture) → ignore
+Use `git diff` to determine whether the symbol was introduced or modified by this PR.
+Only flag dead code that this PR introduced.
+
+**Spec compliance:** If pre-flight step 11 detected a linked design doc or template,
+read it and verify:
+- All spec requirements addressable by this PR are implemented
+- Implementation does not contradict spec decisions
+- No claimed spec items are missing from the implementation
+Skip items clearly assigned to a different implementation phase.
+If no spec was detected, skip this check.
+
 Return a list of issues with file:line and explanation.
 
 #### Agent 2 — Bugs & Logic
@@ -97,7 +151,57 @@ Focus on significant bugs that will impact functionality in practice. Avoid nitp
 You can use `get_dependencies` to check whether callers of a changed function handle
 the new behavior correctly.
 
-Return a list of issues with file:line and explanation.
+**Severity classification:** Classify each finding you report:
+- **Critical** — will cause data loss, incorrect behavior, or security vulnerability in production
+- **Warning** — likely to cause problems under specific conditions (edge cases, race conditions, error paths)
+- **Minor** — code quality or minor robustness issue, won't break functionality
+
+**Failure-path diagrams:** For every issue you classify as Critical, you MUST produce a
+mermaid sequence diagram tracing the failure path. The diagram must include:
+1. The entry point (API call, user action, event trigger)
+2. Each function/component the data passes through (with file references)
+3. The exact point where the failure occurs
+4. What the caller expects vs what it actually receives
+
+This diagram is part of your analysis, not just output formatting. If you cannot construct
+the diagram, investigate further — inability to trace the path may indicate the issue is
+not real. Do NOT produce diagrams for non-Critical issues.
+
+Example:
+```mermaid
+sequenceDiagram
+    participant Frontend as WorkflowDesigner.tsx
+    participant Hook as useWorkflowSave.ts
+    participant API as /api/workflows
+    Frontend->>Hook: save({snapshot: data})
+    Hook->>API: PUT /workflows/123 body={snapshot: data}
+    API-->>Hook: 400 (expects "workflow_snapshot")
+    Note over API: Key mismatch — schema validation fails
+```
+
+**Conditional checklist** — apply these ONLY when the file-type classification from
+pre-flight step 6 includes the matching category:
+
+When `backend-api` files are changed:
+- Non-idempotent operations (POST, DELETE) wrapped in retry logic without deduplication keys
+- Inconsistent or incorrect HTTP status codes for the operation type
+- Missing error response bodies or inconsistent error formats
+
+When `frontend` files are changed:
+- Clickable elements (`onClick`) on non-interactive elements (`div`, `span`) without `role`, `tabIndex`, or `onKeyDown`
+- Custom interactive controls missing `aria-label`, `aria-expanded`, or equivalent
+- Components that fetch data but don't handle loading/error states
+
+When async/concurrent patterns are present (any file type):
+- State updates that depend on async results (IDs, tokens) where rapid user actions could fire before the result arrives
+- Subscriptions, timers, or in-flight requests not cleaned up on unmount or scope exit
+- Optimistic UI updates without rollback on failure
+
+Do NOT apply a conditional checklist when its file-type trigger is absent.
+Conditional checklist findings use the same severity scale (Critical/Warning/Minor).
+
+Return a list of issues with severity, file:line, and explanation.
+Include the mermaid diagram inline for each Critical issue.
 
 #### Agent 3 — Compliance & Conventions
 
@@ -111,7 +215,22 @@ Check:
 - Do changes comply with guidance in code comments (TODOs, warnings, notes)?
 - Are there patterns in the codebase that the changes violate?
 
-Return a list of issues with file:line, the specific rule violated, and explanation.
+Return a list of compliance issues with file:line, the specific rule violated, and explanation.
+
+**Scope discipline** (PR mode only):
+Compare the changed files against the scope metadata from pre-flight step 10.
+Flag files or changes that appear unrelated to the PR's stated purpose.
+
+Rules:
+- Do NOT flag test files that correspond to changed implementation files — tests are always in scope
+- Err on the side of not flagging — only surface files clearly unrelated to the stated purpose
+- When in doubt, don't flag
+
+Scope findings are **advisory only** — report them in a separate section at the end of
+your output, clearly marked as "Scope Notes (advisory)". They are NOT compliance issues
+and will NOT be scored in Phase 3. Keep them separate from your compliance findings.
+
+Skip this check entirely in local mode.
 
 #### Agent 4 — Historical Context
 
@@ -125,12 +244,21 @@ Return a list of issues with file:line and explanation.
 
 ### Phase 3 — Scoring
 
-For **each issue** found in Phase 2, launch a parallel **Haiku agent** to score it 0-100.
+For **each issue** found in Phase 2 (excluding Agent 3's advisory scope notes),
+launch a parallel **Sonnet agent** to score it 0-100.
+
+Scoring uses Sonnet (not Haiku) because this is the quality gate that determines output
+noise vs signal — Sonnet's stronger reasoning reduces false positives and preserves real bugs.
 
 Give each scoring agent:
-- The issue description
+- The issue description (including mermaid diagram if present)
 - The diff context
 - The CLAUDE.md file paths
+
+**Diagram-aware scoring:** When an issue includes a mermaid failure-path diagram, use it
+to verify the trace is plausible — do the participants (files/functions) exist? Does the
+data flow match the actual code? A well-constructed diagram supports high confidence; a
+diagram that doesn't hold up to scrutiny reduces confidence.
 
 Scoring rubric (give this verbatim to each agent):
 
@@ -169,7 +297,7 @@ If issues were found:
 
 **Summary:** [2-3 sentences on what changed]
 
-**Structural Impact:** [blast radius — N dependents, key relationships, or "no structural concerns"]
+**Structural Impact:** [blast radius — N dependents, key relationships, dead code introduced, or "no structural concerns"]
 
 Found N issues:
 
@@ -179,6 +307,12 @@ Found N issues:
 
    [explanation + suggested fix]
    [PR mode: link to file:line with full SHA]
+
+   [If Agent 2 provided a mermaid diagram, include it here:]
+   ```mermaid
+   sequenceDiagram
+       ...
+   ```
 
 **Warning** (N issues)
 
@@ -191,6 +325,12 @@ Found N issues:
 | path/to/file.py | What changed, clean or has issues |
 
 **Confidence: N/5** — [one sentence reasoning]
+
+---
+**Scope Notes** (advisory — not scored, PR mode only)
+- `path/to/file` — why it appears out of scope
+
+[Omit this section entirely if no scope concerns were found or in local mode]
 ```
 
 If no issues found after filtering:
