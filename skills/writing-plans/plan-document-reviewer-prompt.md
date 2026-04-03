@@ -60,8 +60,8 @@ Agent tool (general-purpose):
     6. **HTTP method correctness**: GET requests with JSON bodies are non-standard
        and may be silently dropped. Verify all HTTP endpoints use appropriate methods.
 
-    Use grep, glob, and file reads to verify claims. If Agent Brain MCP tools are
-    available, use agent_brain_get_symbol and agent_brain_get_dependents to check
+    Use grep, glob, and file reads to verify claims. If Agent Brain CLI is
+    available, use `agent-brain-cli query <project> --file <path>` to check
     that referenced symbols exist and have the expected signatures.
 
     ## Severity Calibration

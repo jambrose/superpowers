@@ -53,10 +53,10 @@ Task tool (general-purpose):
     - Did they solve the wrong problem?
     - Did they implement the right feature but wrong way?
 
-    **Structural verification:** If Agent Brain MCP tools are available, use
-    `agent_brain_get_symbol` to verify that symbols and files referenced in the
-    implementation actually exist, and `agent_brain_impact_analysis` to check for
-    unaccounted-for ripple effects. If unavailable, use grep/glob.
+    **Structural verification:** If Agent Brain CLI is available, use
+    `agent-brain-cli query <project> --file <path>` to verify that symbols and files
+    referenced in the implementation actually exist, and `agent-brain-cli impact <project> <symbol>`
+    to check for unaccounted-for ripple effects. If unavailable, use grep/glob.
 
     **Verify by reading code, not by trusting report.**
 

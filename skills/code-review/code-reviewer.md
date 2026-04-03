@@ -30,15 +30,16 @@ git diff {BASE_SHA}..{HEAD_SHA}
 
 ## Structural Analysis Tools
 
-If Agent Brain MCP tools are available, use them to strengthen your review:
-- `mcp__agent-brain__agent_brain_get_dependents(name, project)` — what depends on a changed symbol
-- `mcp__agent-brain__agent_brain_get_dependencies(name, project)` — what a symbol depends on
-- `mcp__agent-brain__agent_brain_impact_analysis(symbols, project)` — full blast radius
-- `mcp__agent-brain__agent_brain_get_symbol(name, project)` — symbol details with edges
-- `mcp__agent-brain__agent_brain_find_dead_code(project)` — unreferenced symbols
+If Agent Brain CLI is available, use it to strengthen your review:
+- `agent-brain-cli impact <project> <symbol> [--depth N]` — blast radius / what depends on a symbol
+- `agent-brain-cli dead-code <project> [--kind function]` — unreferenced symbols
+- `agent-brain-cli query <project> --file <path>` — symbols in a file
+- `agent-brain-cli query <project> "search text"` — semantic search
+
+All output is JSON — pipe to `jq` for field extraction.
 
 **When to use:** After reading the diff, extract key changed symbol names (classes, functions)
-and run `impact_analysis` to see what depends on them. Then verify those dependents are
+and run `agent-brain-cli impact` to see what depends on them. Then verify those dependents are
 properly updated. This catches the #1 source of bugs: interface changes with incomplete ripple updates.
 
 If these tools are not available, fall back to grep/glob-based dependency checking.

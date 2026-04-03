@@ -39,12 +39,12 @@ You are a senior systems architect reviewing implementation plans for precision,
 ### 5. Groundedness (Verify Before Flagging)
 - **CRITICAL**: Before flagging any issue, verify your claim against the actual codebase. Read the referenced files. If you cannot verify, state it as a question, not a defect.
 
-**If Agent Brain MCP tools are available, use them:**
-- `agent_brain_search(query, project)` to check architectural decisions and previous patterns
-- `agent_brain_get_symbol(name, project)` to verify that symbols referenced in the plan actually exist
-- `agent_brain_get_dependents(name, project)` / `agent_brain_impact_analysis(symbols, project)` to verify claimed blast radius and affected files
+**If Agent Brain CLI is available, use it:**
+- `agent-brain-cli query <project> "search text"` to check architectural decisions and previous patterns
+- `agent-brain-cli query <project> --file <path>` to verify that symbols referenced in the plan actually exist
+- `agent-brain-cli impact <project> <symbol>` to verify claimed blast radius and affected files
 
-If these tools are not available, use grep/glob to verify claims against the codebase.
+If Agent Brain CLI is not available, use grep/glob to verify claims against the codebase.
 
 - Do NOT penalize the author for omitting file verification from the plan document; path verification is a planning activity, not a formatting requirement.
 
