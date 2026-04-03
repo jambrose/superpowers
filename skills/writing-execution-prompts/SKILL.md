@@ -46,12 +46,57 @@ Each prompt = one dispatchable unit of work for a single agent session.
 
 **Rule of thumb:** If an agent needs >30 minutes or >3 commits, the prompt is too big.
 
+## Worktree Isolation for Parallel Prompts
+
+Parallel prompts MUST use `EnterWorktree` for isolation. Each parallel agent
+works in its own worktree with its own branch — zero collision risk.
+
+**Pattern for parallel prompts (02, 03a, 03b, etc.):**
+
+Every parallel prompt MUST include these instructions at the top of Deliverables:
+
+```markdown
+- [ ] **Isolate**: Call `EnterWorktree` with name `<feature>-<prompt-name>`
+      (e.g., `layer2-orchestrator`). All work happens in this worktree.
+```
+
+And at the end of Deliverables (before Report):
+
+```markdown
+- [ ] **Keep worktree**: Call `ExitWorktree` with action `keep` — the fan-in
+      prompt will merge your branch.
+```
+
+**Pattern for fan-in prompts (04, etc.):**
+
+The fan-in prompt merges all parallel branches into the feature branch:
+
+```markdown
+- [ ] Merge parallel branches into feature branch:
+  git merge <worktree-branch-1> <worktree-branch-2> <worktree-branch-3>
+- [ ] Resolve any conflicts
+- [ ] Run full test suite to verify merge
+```
+
+**Pattern for the final synchronize prompt:**
+
+Clean up any remaining worktrees:
+
+```markdown
+- [ ] Remove worktrees: `git worktree prune`
+- [ ] Delete merged branches
+```
+
+**Sequential prompts** (00, 01, final) do not need worktrees — they run alone.
+
 ## Atomicity and Parallelism
 
-**A prompt marked "parallel" MUST be truly atomic — zero file overlap with any concurrent prompt.**
+**Parallel prompts use worktrees for physical isolation.** Even with worktrees,
+the collision matrix in the README should document which files each prompt touches
+— this helps the fan-in prompt anticipate merge conflicts.
 
 Before marking prompts as parallel, verify:
-1. **No shared files** — if prompt 03a and 03b both modify the same file, they are NOT parallel
+1. **No shared files** — if prompt 03a and 03b both modify the same file, they are NOT parallel (worktrees prevent runtime collision but the merge will conflict)
 2. **No shared intermediate state** — if 03a creates a type that 03b imports, they are sequential
 3. **No import chain overlap** — if both prompts update imports in the same barrel file, one goes first
 
