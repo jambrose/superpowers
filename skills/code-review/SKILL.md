@@ -33,13 +33,10 @@ Follow these phases precisely. Make a todo list first.
    - PR mode: `gh pr diff <number> --name-only`
    - Local mode: `git diff --name-only` + `git diff --staged --name-only`
 
-5. **Structural pre-flight** (if Agent Brain MCP tools are available):
-   ```python
+5. **Structural pre-flight** (if Agent Brain CLI is available):
+   ```bash
    # Get blast radius for changed symbols
-   mcp__agent-brain__agent_brain_impact_analysis(
-       symbols=[<key classes/functions from changed files>],
-       project="<project-name>"
-   )
+   agent-brain-cli impact <project-name> Symbol1 Symbol2 Symbol3
    ```
    Extract 5-10 key symbol names from the diff (class names, function names that were modified).
    If Agent Brain is unavailable, skip this step and note it in the output.
@@ -58,9 +55,9 @@ Follow these phases precisely. Make a todo list first.
    Extension and path matching is sufficient — do not read file contents for classification.
    A file may match multiple categories. Pass this classification to all Phase 2 agents.
 
-7. **Dead code scan** (if Agent Brain MCP tools are available):
-   ```python
-   mcp__agent-brain__agent_brain_find_dead_code(project="<project-name>")
+7. **Dead code scan** (if Agent Brain CLI is available):
+   ```bash
+   agent-brain-cli dead-code <project-name>
    ```
    Filter results to only include symbols defined in changed files. Ignore symbols in
    unchanged files — project-wide dead code is not this PR's problem.
@@ -97,14 +94,14 @@ Each agent MUST include a `## Tools Used` section at the end listing every tool 
 Tell each agent:
 
 > **Structural analysis tools (use when investigating dependencies or blast radius):**
-> If Agent Brain MCP tools are available in this project, you can use:
-> - `mcp__agent-brain__agent_brain_get_dependents(name, project)` — what depends on a symbol
-> - `mcp__agent-brain__agent_brain_get_dependencies(name, project)` — what a symbol depends on
-> - `mcp__agent-brain__agent_brain_get_symbol(name, project)` — full symbol info with edges
-> - `mcp__agent-brain__agent_brain_find_dead_code(project)` — unreferenced symbols
-> - `mcp__agent-brain__agent_brain_impact_analysis(symbols, project)` — blast radius
-> - `mcp__agent-brain__agent_brain_graph_query(cypher, project)` — raw Cypher queries
+> If Agent Brain CLI is available in this project, you can use:
+> - `agent-brain-cli impact <project> <symbol> [--depth N]` — blast radius / what depends on a symbol
+> - `agent-brain-cli dead-code <project> [--kind function]` — unreferenced symbols
+> - `agent-brain-cli query <project> --file <path>` — symbols in a file
+> - `agent-brain-cli query <project> --arch` — architecture overview
+> - `agent-brain-cli query <project> "search text"` — semantic search
 >
+> All output is JSON — pipe to `jq` for field extraction.
 > Use these when investigating structural issues (dependency gaps, missing implementations,
 > orphaned references). They are optional — use them when they would strengthen your analysis.
 > If they are not available, fall back to grep/glob-based analysis.
@@ -121,7 +118,7 @@ Your job is to verify that ALL dependents are properly handled. Specifically:
 - Are test fixtures and mocks updated to match new interfaces?
 - Are there new symbols that nothing references (potential dead code)?
 
-Use `get_dependents` and `get_symbol` to dig deeper on specific symbols.
+Use `agent-brain-cli impact` to dig deeper on specific symbols.
 
 **Dead code verification:** You received filtered dead code candidates from pre-flight
 step 7. For each candidate, classify it:
@@ -148,7 +145,7 @@ Focus: logic errors, race conditions, null/undefined handling, edge cases, resou
 Read the diff AND the full modified files for context (not just the changed lines).
 Focus on significant bugs that will impact functionality in practice. Avoid nitpicks.
 
-You can use `get_dependencies` to check whether callers of a changed function handle
+You can use `agent-brain-cli impact` to check whether callers of a changed function handle
 the new behavior correctly.
 
 **Severity classification:** Classify each finding you report:
@@ -286,11 +283,50 @@ Scoring rubric (give this verbatim to each agent):
 
 **Always** output the full report to the terminal.
 
-**PR mode additionally:** post the report as a comment on the PR using `gh pr comment <number>`.
+**PR mode additionally:** post as an inline PR review (not a plain comment).
 
-#### Report Format
+#### Step 4a — Build review payload
 
-If issues were found:
+For each scored issue from Phase 3, create a review comment object:
+
+```json
+{
+  "path": "src/file.py",
+  "line": 42,
+  "body": "**[Critical]** Brief description\n\nExplanation + suggested fix"
+}
+```
+
+**Line number rules:**
+- The `line` must appear in the PR diff (a changed or added line). Use `gh pr diff <number>`
+  to verify. If the issue is on an unchanged line, use the nearest changed line in the
+  same hunk and note "Issue is on nearby line N" in the body.
+- If the issue cannot be mapped to any diff line (e.g., a missing-code issue), include it
+  in the review body summary instead.
+- Include mermaid failure-path diagrams in the comment body for Critical issues.
+
+#### Step 4b — Submit the review
+
+Get the head SHA first, then submit:
+
+```bash
+# Get head SHA
+HEAD_SHA=$(gh pr view <number> --json headRefOid -q .headRefOid)
+
+# Submit review with inline comments
+gh api repos/{owner}/{repo}/pulls/<number>/reviews \
+  --method POST \
+  -f commit_id="$HEAD_SHA" \
+  -f event="COMMENT" \
+  -f body="<summary body>" \
+  -f 'comments[0][path]=src/file.py' \
+  -f 'comments[0][line]=42' \
+  -f 'comments[0][body]=Issue description'
+```
+
+For multiple comments, increment the array index: `comments[0]`, `comments[1]`, etc.
+
+**The summary body** (the `-f body=` field) should contain:
 
 ```
 ### Code Review
@@ -299,26 +335,7 @@ If issues were found:
 
 **Structural Impact:** [blast radius — N dependents, key relationships, dead code introduced, or "no structural concerns"]
 
-Found N issues:
-
-**Critical** (N issues)
-
-1. **file.py:42** — brief description (reason)
-
-   [explanation + suggested fix]
-   [PR mode: link to file:line with full SHA]
-
-   [If Agent 2 provided a mermaid diagram, include it here:]
-   ```mermaid
-   sequenceDiagram
-       ...
-   ```
-
-**Warning** (N issues)
-
-1. **file.ts:15** — brief description (reason)
-
-   [explanation + suggested fix]
+Found N issues (posted as inline comments).
 
 | File | Summary |
 |------|---------|
@@ -326,31 +343,47 @@ Found N issues:
 
 **Confidence: N/5** — [one sentence reasoning]
 
+Generated with [Claude Code](https://claude.ai/code)
+```
+
+**Scope Notes** (advisory, not scored) go in the summary body, not as inline comments:
+```
 ---
-**Scope Notes** (advisory — not scored, PR mode only)
+**Scope Notes** (advisory)
 - `path/to/file` — why it appears out of scope
-
-[Omit this section entirely if no scope concerns were found or in local mode]
 ```
 
-If no issues found after filtering:
+Omit scope notes section entirely if none found.
 
-```
-### Code Review
+#### No issues found
+
+If no issues survive scoring, post a simple review:
+
+```bash
+gh api repos/{owner}/{repo}/pulls/<number>/reviews \
+  --method POST \
+  -f commit_id="$HEAD_SHA" \
+  -f event="COMMENT" \
+  -f body="### Code Review
 
 No significant issues found. Checked for: structural completeness, bugs, CLAUDE.md compliance, historical context.
 
 **Structural Impact:** [brief summary]
+
+Generated with [Claude Code](https://claude.ai/code)"
 ```
+
+#### Local mode output
+
+Local mode outputs the full report to the terminal only (no GitHub API calls).
+Use the same severity grouping (Critical, Warning, Minor) with file:line references.
 
 #### PR Comment Rules
 
-- Keep output brief
+- Keep inline comments focused — one issue per comment, with suggested fix
 - No emojis
-- Link and cite relevant code, files, and URLs
 - Use full git SHA in file links (not HEAD or short SHA)
-- Line range format: `#L[start]-L[end]` with 1 line context before and after
-- End with: `Generated with [Claude Code](https://claude.ai/code)`
+- Mermaid diagrams go in the inline comment for Critical issues, not the summary
 
 ## Integration with Workflows
 
