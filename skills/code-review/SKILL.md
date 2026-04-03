@@ -128,6 +128,11 @@ step 7. For each candidate, classify it:
 Use `git diff` to determine whether the symbol was introduced or modified by this PR.
 Only flag dead code that this PR introduced.
 
+**Schema completeness:** For any new DDL (CREATE TABLE, ALTER TABLE), verify:
+- NOT NULL on columns that should never be NULL (booleans, timestamps, required fields)
+- Indexes match the query patterns used by new code
+- Default values are consistent with what the application code writes
+
 **Spec compliance:** If pre-flight step 11 detected a linked design doc or template,
 read it and verify:
 - All spec requirements addressable by this PR are implemented
@@ -197,6 +202,23 @@ When async/concurrent patterns are present (any file type):
 Do NOT apply a conditional checklist when its file-type trigger is absent.
 Conditional checklist findings use the same severity scale (Critical/Warning/Minor).
 
+**Systematic checks** — apply these on every review:
+
+- **Exception type hierarchies:** When code uses `asyncio.timeout`, `contextlib.suppress`,
+  or other exception-based control flow, verify enclosing `except` clauses distinguish the
+  specific exception from broad catches like `except Exception`. Example: `asyncio.timeout`
+  raises `TimeoutError` — if an outer `except Exception` catches it, timeout handling is
+  silently wrong.
+- **Error isolation at every call level:** When the code claims error isolation (one component's
+  failure doesn't block others), verify the isolation exists at every call level, not just the
+  innermost. A try/except inside a function is not isolation if the caller's loop doesn't also
+  wrap the call.
+- **Cross-instance consistency:** When you flag an issue on one instance of a pattern (e.g., a
+  missing date window on one detector), systematically check all sibling instances of the same
+  pattern. Don't stop at the first one you find.
+- **SQL DDL constraints:** For new table definitions, verify NOT NULL constraints on columns
+  that should never be NULL (especially booleans, timestamps, required foreign keys).
+
 Return a list of issues with severity, file:line, and explanation.
 Include the mermaid diagram inline for each Critical issue.
 
@@ -211,6 +233,11 @@ Check:
 - Do changes comply with explicit CLAUDE.md rules?
 - Do changes comply with guidance in code comments (TODOs, warnings, notes)?
 - Are there patterns in the codebase that the changes violate?
+
+**Documentation accuracy:** If the PR modifies CHANGELOG, README, or doc files alongside
+code changes, verify the descriptions match actual implementation behavior. Example: a
+CHANGELOG entry saying "detects X within a session" when the code actually works "across
+sessions" is a documentation bug.
 
 Return a list of compliance issues with file:line, the specific rule violated, and explanation.
 
@@ -241,16 +268,20 @@ Return a list of issues with file:line and explanation.
 
 ### Phase 3 — Scoring
 
-For **each issue** found in Phase 2 (excluding Agent 3's advisory scope notes),
-launch a parallel **Sonnet agent** to score it 0-100.
+Collect **all issues** from Phase 2 (excluding Agent 3's advisory scope notes) and
+launch **one or two parallel Sonnet agents** to score the full batch. Each agent receives
+all issues together so it can rank relative importance — an issue that looks minor in
+isolation may be the most important finding when seen alongside the others.
 
 Scoring uses Sonnet (not Haiku) because this is the quality gate that determines output
 noise vs signal — Sonnet's stronger reasoning reduces false positives and preserves real bugs.
 
 Give each scoring agent:
-- The issue description (including mermaid diagram if present)
+- The **full list of issues** to score (with descriptions and mermaid diagrams if present)
 - The diff context
 - The CLAUDE.md file paths
+
+If there are more than 8 issues, split into two parallel batches to stay within context.
 
 **Diagram-aware scoring:** When an issue includes a mermaid failure-path diagram, use it
 to verify the trace is plausible — do the participants (files/functions) exist? Does the
@@ -259,16 +290,33 @@ diagram that doesn't hold up to scrutiny reduces confidence.
 
 Scoring rubric (give this verbatim to each agent):
 
-> Score this issue on a scale from 0-100:
-> - 0: False positive. Doesn't hold up to scrutiny, or is a pre-existing issue.
-> - 25: Might be real, might be false positive. Couldn't verify. If stylistic, not in CLAUDE.md.
-> - 50: Real but nitpicky or rare in practice. Not very important relative to the rest.
-> - 75: Verified real. Will impact functionality, or directly mentioned in CLAUDE.md.
-> - 100: Definitely real. Will happen frequently. Evidence directly confirms this.
+> Score each issue on a scale from 0-100. You are scoring the full batch together —
+> consider each issue relative to the others.
 >
-> For CLAUDE.md issues: double-check that CLAUDE.md actually calls out this issue specifically.
+> - 0: False positive. Doesn't hold up to scrutiny, or is a pre-existing issue not
+>   introduced by this change.
+> - 25: Might be real, might be false positive. Couldn't verify. Or: stylistic issue
+>   not mentioned in CLAUDE.md.
+> - 50: Real but low-impact in practice. Would not cause incorrect behavior, data loss,
+>   or security issues under normal conditions.
+> - 75: Verified real. Will cause incorrect behavior, data loss, or security issues under
+>   specific conditions. Or: directly violates an explicit CLAUDE.md rule.
+> - 100: Verified real AND high-impact. Will cause problems frequently or under common
+>   scenarios. Evidence directly confirms the failure path.
+>
+> **TODO/FIXME floor rule:** If the code itself contains a TODO, FIXME, or comment
+> acknowledging the exact gap that the issue describes, the issue is **confirmed real
+> by the author** — they placed that marker because they knew it was a problem. Score
+> these at minimum 85. Score higher (90-100) if the acknowledged gap has a plausible
+> failure path (data loss, silent errors, resource leaks). Do NOT treat author
+> acknowledgment as evidence that the risk was "accepted" — treat it as evidence
+> the issue is definitely real.
+>
+> **CLAUDE.md issues:** Double-check that CLAUDE.md actually calls out this issue
+> specifically. A general "good practice" not in CLAUDE.md scores lower than one
+> explicitly required.
 
-**Filter:** discard all issues scoring below 80.
+**Filter:** discard all issues scoring below 75.
 
 **False positives to watch for:**
 - Pre-existing issues not introduced by this change
