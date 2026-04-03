@@ -57,47 +57,23 @@ Before marking prompts as parallel, verify:
 
 **When in doubt, make it sequential.** The cost of unnecessary sequencing is minutes. The cost of a broken parallel dispatch is debugging merge conflicts and stomped state.
 
-## Prompt Structure
+## Prompt Template
 
-Each prompt file follows this structure:
+<HARD-GATE>
+Before writing ANY prompt, you MUST:
+1. Read `docs/prompts/CLAUDE.md` if it exists — project-specific prompt conventions
+2. Glob for `docs/templates/*agent*` and `docs/templates/*prompt*` — read any matches
+3. Use the project template as the prompt structure. There is no fallback structure
+   in this skill. If the project has no template, ask the user which format to use.
+</HARD-GATE>
 
-```markdown
-# Prompt NN: [Short Title]
-
+Every prompt header MUST include these dependency/parallelism fields:
+```
 > **Plan**: `path/to/plan.md` Tasks N-M
 > **Specs**: SPEC-IDs covered
 > **Depends on**: Prompt NN (or "None — can run first")
 > **Parallel**: Yes/No — can run alongside prompt NN
-
-## Context
-[2-3 sentences: what this prompt does and why, enough for zero-context agent]
-
-## Requirements
-From [design-doc], implement ONLY:
-- SPEC-ID: [one-line summary]
-Constraints:
-- Out of scope items are FORBIDDEN
-- If spec unclear: raise SPEC-UNCLEAR
-
-## Deliverables
-### [Subsection per task]
-- Exact file paths (Create/Modify/Delete)
-- Code or change descriptions
-- What to keep vs. delete
-
-## Verification
-[Exact commands with expected output]
-
-## Commit
-[Exact git add + commit command with message]
-
-## Report (if project has agent prompt template)
-[Include mandatory report/evidence/escalation sections from template]
 ```
-
-> **IMPORTANT:** Before writing any prompts, check `docs/templates/` for an agent
-> prompt template. If one exists, its mandatory Deliverables sections (report format,
-> evidence, assumptions, escalation) MUST be appended to every prompt's Deliverables.
 
 ## Dependency Chain
 
@@ -145,6 +121,19 @@ docs/prompts/<feature-name>/
 | 7 | Add final verification prompt — full test suite + dead reference search |
 | 8 | Save to `docs/prompts/<feature>/` |
 | 9 | Commit all prompts together |
+
+## Post-Write Checklist
+
+After writing ALL prompts, verify each one passes this checklist. Fix before committing.
+
+- [ ] Follows the project's agent prompt template structure (not a custom format)
+- [ ] Header has Plan, Specs, Depends on, Parallel fields
+- [ ] Context section with project-specific queries (e.g., Agent Brain CLI)
+- [ ] Problem — one sentence
+- [ ] Targets — files with CREATE/MODIFY/READ
+- [ ] Requirements — spec IDs + explicit out of scope
+- [ ] Deliverables end with the project template's mandatory sections (report, assumptions, evidence, code review — whatever the template requires)
+- [ ] Start — action verb + first step
 
 ## Common Mistakes
 
