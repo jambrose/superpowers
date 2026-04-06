@@ -19,7 +19,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 - (User preferences for plan location override this default)
 
 <HARD-GATE>
-Do NOT hand off the plan for execution, save it as "complete", or invoke any execution skill until the plan review loop has passed. A plan that has not been reviewed is not complete.
+Do NOT hand off the plan for execution, save it as "complete", or invoke any execution skill until the plan review loop has passed AND the user has approved the plan. A plan that has not been reviewed is not complete. A plan that has not been approved by the user is not ready for execution.
 </HARD-GATE>
 
 ## Checklist
@@ -29,10 +29,11 @@ You MUST create a task for each of these items and complete them in order:
 1. **Scope check** — if spec covers multiple independent subsystems, break into separate plans
 2. **Map file structure** — use Agent Brain (if available) for dependency/impact analysis
 3. **Write plan chunks** — tasks with exact file paths, code, commands, expected output
-4. **Self-review** — quick inline check for placeholders, spec coverage, type consistency
-5. **Plan review loop** — dispatch plan-document-reviewer subagent per chunk; fix issues and re-dispatch until approved (max 5 iterations, then surface to human)
-6. **Save and commit plan** — save to docs location, commit to git
-7. **Execution handoff** — present plan to user, proceed to execution
+4. **Self-review** — quick inline check for placeholders, spec coverage, type consistency, API verification
+5. **Plan review loop** — dispatch plan-document-reviewer for EVERY chunk; fix issues and re-dispatch until approved (max 5 iterations, then surface to human)
+6. **Save and commit plan** — only after ALL chunks pass review
+7. **User review gate** — present plan to user, wait for approval
+8. **Execution handoff** — only after user approves, proceed to execution
 
 ## Process Flow
 
@@ -46,6 +47,8 @@ digraph writing_plans {
     "Review passed?" [shape=diamond];
     "More chunks?" [shape=diamond];
     "Save and commit" [shape=box];
+    "User review gate" [shape=box];
+    "User approves?" [shape=diamond];
     "Execution handoff" [shape=doublecircle];
 
     "Scope check" -> "Map file structure";
@@ -57,7 +60,10 @@ digraph writing_plans {
     "Review passed?" -> "More chunks?" [label="approved"];
     "More chunks?" -> "Write plan chunk" [label="yes"];
     "More chunks?" -> "Save and commit" [label="no"];
-    "Save and commit" -> "Execution handoff";
+    "Save and commit" -> "User review gate";
+    "User review gate" -> "User approves?";
+    "User approves?" -> "Write plan chunk" [label="changes requested"];
+    "User approves?" -> "Execution handoff" [label="approved"];
 }
 ```
 
@@ -177,34 +183,117 @@ After writing each chunk, do a quick self-check before dispatching the subagent 
 
 **3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 
+**4. API verification:** For every `object.method()` call in code blocks, have you verified the method exists? Run `agent-brain-cli impact <project> <ClassName>` or read the source file. If you cannot point to the file:line where a method is defined, it cannot be in the plan.
+
 Fix any issues inline, then proceed to the mandatory review loop.
 
 ## Plan Review Loop
 
-**This step is MANDATORY — not advisory.** You MUST dispatch the reviewer for each chunk before proceeding.
+**This step is MANDATORY — not advisory.** You MUST dispatch the reviewer for **every chunk** before proceeding. Do not select "the most critical chunks" — review all of them.
 
-After self-review, for each chunk of the plan:
+After self-review, for each chunk of the plan, dispatch the reviewer using this exact prompt structure. Do not write a custom prompt — use this template:
 
-1. Dispatch plan-document-reviewer subagent (see plan-document-reviewer-prompt.md) with precisely crafted review context — never your session history. This keeps the reviewer focused on the plan, not your thought process.
-   - Provide: chunk content, path to spec document, path to codebase root
-2. If ❌ Issues Found:
-   - Fix the issues in the chunk
-   - Re-dispatch reviewer for that chunk
-   - Repeat until ✅ Approved
-3. If ✅ Approved: proceed to next chunk (or execution handoff if last chunk)
+```
+Agent tool (general-purpose):
+  description: "Review plan chunk N"
+  prompt: |
+    You are a plan document reviewer. Verify this plan chunk is complete,
+    grounded in the codebase, and ready for a zero-context agent to execute.
+
+    **Plan chunk to review:** [PLAN_FILE_PATH] - Chunk N only
+    **Spec for reference:** [SPEC_FILE_PATH]
+    **Codebase root:** [CODEBASE_ROOT]
+
+    ## What to Check
+
+    | Category | What to Look For |
+    |----------|------------------|
+    | Completeness | TODOs, placeholders, `...` in code blocks, incomplete tasks |
+    | Spec Alignment | Chunk covers relevant spec requirements, every spec ID has a task |
+    | Groundedness | Code references real symbols, methods, and APIs — verify against codebase |
+    | Integration Points | Referenced functions exist in the plan or in the codebase |
+    | Test Completeness | Every feature has tests, fixtures are accessible |
+
+    ## CRITICAL — Groundedness Checks
+
+    Before approving, you MUST verify these against the actual codebase:
+
+    1. **API accuracy**: When the plan calls `object.method()`, verify that
+       method exists on that object. Read the source file or run
+       `agent-brain-cli impact <project> <ClassName>`. Wrong method names
+       cause immediate runtime failures for executing agents.
+
+    2. **No placeholder code**: Search for `...` in code blocks. Every code
+       snippet must be complete enough to execute.
+
+    3. **Function existence**: When a task imports or calls a function defined
+       in another task, verify the dependency is captured in task ordering.
+
+    4. **Test fixture scope**: When tests reference fixtures, verify they are
+       defined in the same class, at module level, or in conftest.py.
+
+    5. **Mock fidelity**: When tests set `mock.method = AsyncMock(...)`,
+       verify that method exists on the real class being mocked.
+
+    Use grep, glob, and file reads to verify claims. Use `agent-brain-cli`
+    if available.
+
+    ## Severity Calibration
+
+    1. **High**: Runtime failure for executing agent (wrong API, missing
+       function, broken compatibility, placeholder code)
+    2. **Medium**: Confusion or improvisation needed (missing commit, vague
+       test, undefined fixture)
+    3. **Low**: Style, naming, wording
+
+    Approve unless there are High severity issues.
+
+    ## Output Format
+
+    ## Plan Review - Chunk N
+
+    **Status:** Approved | Issues Found
+
+    **Issues (if any):**
+    - [Severity] [Task X, Step Y]: [specific issue] - [why it matters]
+
+    **Recommendations (advisory):**
+    - [suggestions]
+```
+
+**Review loop:**
+
+1. Dispatch the reviewer for each chunk using the template above
+2. If Issues Found: fix the issues, re-dispatch for that chunk
+3. If Approved: proceed to next chunk
+4. Repeat until ALL chunks are approved
 
 **Chunk boundaries:** Use `## Chunk N: <name>` headings to delimit chunks. Each chunk should be ≤1000 lines and logically self-contained.
 
 **Review loop guidance:**
 - Same agent that wrote the plan fixes it (preserves context)
 - If loop exceeds 5 iterations, surface to human for guidance
-- Reviewers are advisory on style — but groundedness issues (wrong API names, missing functions, broken compatibility) MUST be fixed
+- Groundedness issues (wrong API names, missing functions, broken compatibility) MUST be fixed — these are not advisory
+
+## Save and Commit
+
+Only after ALL chunks have passed review, save and commit the plan.
+
+Do NOT commit the plan before the review loop completes. Do NOT run the review in the background and commit while it is still running.
+
+## User Review Gate
+
+After the plan is committed, present it to the user for review before proceeding:
+
+> "Plan reviewed and committed to `<path>`. [N] chunks reviewed, [summary of issues found and fixed]. Please review the plan and let me know if you want to make any changes before we proceed to execution."
+
+**Wait for the user's response.** If they request changes, make them and re-run the review loop on affected chunks. Only proceed once the user approves.
 
 ## Execution Handoff
 
-After saving the plan, offer execution choice:
+Only after the user has approved the plan, offer execution choice:
 
-**"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Two execution options:**
+**"Two execution options:**
 
 **1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
 

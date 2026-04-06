@@ -18,7 +18,7 @@ Decompose an implementation plan into numbered, self-contained prompt files that
 ## Core Pattern
 
 ```
-Plan (tasks + specs) → Check template → Identify boundaries → Write numbered prompts → Commit
+Plan (tasks + specs) → Check template → Identify boundaries → Write numbered prompts → Review loop → Commit → User gate
 ```
 
 ```dot
@@ -27,8 +27,13 @@ digraph prompt_flow {
   "Check for agent prompt template" -> "Map dependency chain";
   "Map dependency chain" -> "Group tasks into prompts";
   "Group tasks into prompts" -> "Write each prompt";
-  "Write each prompt" -> "Verify coverage";
-  "Verify coverage" -> "Commit prompts";
+  "Write each prompt" -> "Self-review checklist";
+  "Self-review checklist" -> "Dispatch prompt reviewer";
+  "Dispatch prompt reviewer" -> "Review passed?" [shape=diamond];
+  "Review passed?" -> "Dispatch prompt reviewer" [label="issues found"];
+  "Review passed?" -> "Commit prompts" [label="approved"];
+  "Commit prompts" -> "User review gate";
+  "User review gate" -> "Execution dispatch";
 }
 ```
 
@@ -164,8 +169,10 @@ docs/prompts/<feature-name>/
 | 5 | Number sequentially — `01-name.md`, `02-name.md` |
 | 6 | Write each prompt — follow structure above |
 | 7 | Add final verification prompt — full test suite + dead reference search |
-| 8 | Save to `docs/prompts/<feature>/` |
-| 9 | Commit all prompts together |
+| 8 | Self-review checklist — verify all prompts |
+| 9 | Prompt review loop — dispatch reviewer, fix issues until approved |
+| 10 | Save to `docs/prompts/<feature>/` and commit |
+| 11 | User review gate — present to user, wait for approval |
 
 ## Post-Write Checklist
 
@@ -179,6 +186,34 @@ After writing ALL prompts, verify each one passes this checklist. Fix before com
 - [ ] Requirements — spec IDs + explicit out of scope
 - [ ] Deliverables end with the project template's mandatory sections (report, assumptions, evidence, code review — whatever the template requires)
 - [ ] Start — action verb + first step
+
+## Prompt Review Loop
+
+After the self-review checklist passes, dispatch a prompt reviewer subagent.
+See `prompt-reviewer-prompt.md` for the full template.
+
+1. Dispatch the reviewer with: prompts directory, plan path, codebase root
+2. If Issues Found: fix the issues, re-dispatch
+3. If Approved: commit prompts
+4. Maximum 5 iterations, then surface to human
+
+**Review focus:** plan coverage (every task has a prompt), file overlap
+(parallel prompts don't collide), method spot-checks (calls reference real
+code), template compliance, dependency ordering.
+
+## Commit
+
+Only after the review loop passes, commit all prompts together.
+
+## User Review Gate
+
+After prompts are committed, present them to the user before dispatch:
+
+> "Prompts written and committed to `<path>`. [N] prompts covering [M] plan
+> tasks. Please review before I begin dispatching agents."
+
+**Wait for the user's response.** If they request changes, make them and
+re-run the review. Only proceed to dispatch once the user approves.
 
 ## Common Mistakes
 
