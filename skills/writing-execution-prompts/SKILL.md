@@ -158,21 +158,20 @@ docs/prompts/<feature-name>/
 └── NN-synchronize.md
 ```
 
-## Quick Reference
+## Checklist
 
-| Step | Action |
-|------|--------|
-| 1 | Read plan — identify tasks, chunks, spec IDs, file list |
-| 2 | Check `docs/templates/` for agent prompt template |
-| 3 | Map dependencies — which tasks depend on which? |
-| 4 | Group into prompts — one per dispatchable unit |
-| 5 | Number sequentially — `01-name.md`, `02-name.md` |
-| 6 | Write each prompt — follow structure above |
-| 7 | Add final verification prompt — full test suite + dead reference search |
-| 8 | Self-review checklist — verify all prompts |
-| 9 | Prompt review loop — dispatch reviewer, fix issues until approved |
-| 10 | Save to `docs/prompts/<feature>/` and commit |
-| 11 | User review gate — present to user, wait for approval |
+You MUST create a task for each of these items and complete them in order:
+
+1. **Read plan** — identify tasks, chunks, spec IDs, file list
+2. **Check templates** — read `docs/templates/` for agent prompt template and `docs/prompts/CLAUDE.md` for conventions
+3. **Map dependencies** — which tasks depend on which?
+4. **Group into prompts** — one per dispatchable unit
+5. **Write prompts** — numbered sequentially, follow template structure
+6. **Add verification prompt** — final prompt: full test suite + dead reference search
+7. **Self-review checklist** — verify all prompts pass the post-write checklist below
+8. **Prompt review loop** — dispatch reviewer, fix issues until approved
+9. **Commit prompts** — only after review passes
+10. **User review gate** — present to user, wait for approval before dispatch
 
 ## Post-Write Checklist
 
