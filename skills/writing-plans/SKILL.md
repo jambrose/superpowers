@@ -293,13 +293,19 @@ After the plan is committed, present it to the user for review before proceeding
 
 Only after the user has approved the plan, offer execution choice:
 
-**"Two execution options:**
+**"Three execution options:**
 
-**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
+**1. Write Prompts** - Generate numbered prompt files for agent dispatch in separate sessions/tabs
 
-**2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
+**2. Subagent-Driven** - I dispatch a fresh subagent per task, review between tasks, fast iteration
+
+**3. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
 
 **Which approach?"**
+
+**If Write Prompts chosen:**
+- **REQUIRED SUB-SKILL:** Use superpowers:writing-execution-prompts
+- Produces numbered, self-contained prompt files for dispatch
 
 **If Subagent-Driven chosen:**
 - **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
