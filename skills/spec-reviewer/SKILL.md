@@ -48,6 +48,18 @@ If Agent Brain CLI is not available, use grep/glob to verify claims against the 
 
 - Do NOT penalize the author for omitting file verification from the plan document; path verification is a planning activity, not a formatting requirement.
 
+#### 5a. Transitive Completeness (catches blast-radius bugs)
+
+Verifying that cited file:line pairs resolve correctly is necessary but not sufficient. A spec can cite real symbols yet still miss the transitive callers, constructors, or middle-layer factories that actually own the behavior.
+
+For every symbol the spec cites or proposes to modify, verify the FULL inventory:
+
+- Run `impact <symbol> --depth 1` (or grep the symbol name project-wide) to enumerate ALL callers and constructors. Does the spec's "migrate these N callsites" list match the actual inventory? A missed caller is a blast-radius defect.
+- For functions gaining new positional arguments — confirm every call site is listed in the migration plan, or flag that the new arg should be keyword-only to fail fast on unmigrated callers.
+- For classes whose constructors the spec modifies — check who constructs them. Direct instantiations, factories, test fixtures, middle-layer pipelines and registries. Middle layers are silently skipped when you only inspect the leaf class.
+
+"The cited line resolves correctly" is evidence the author looked at ONE place. Spec review must confirm they looked at ALL places the change will ripple through.
+
 ### 6. System Impact
 - **Performance & Lifecycle**: Flag designs that introduce serial blocking during startup, resource leaks, or inefficient I/O.
 - **Integration Integrity**: Check that the plan correctly identifies the symbols/files to be modified. Flag plans that rely on brittle line numbers instead of symbol-based targeting.
