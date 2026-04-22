@@ -188,17 +188,33 @@ After writing ALL prompts, verify each one passes this checklist. Fix before com
 
 ## Prompt Review Loop
 
-After the self-review checklist passes, dispatch a prompt reviewer subagent.
-See `prompt-reviewer-prompt.md` for the full template.
+After the self-review checklist passes, you MUST dispatch a prompt
+reviewer subagent. This is not optional — skipping this step has
+historically let High-severity bugs (wrong delete ranges, inverted
+instructions, scope violations) reach the executing agent. See
+`prompt-reviewer-prompt.md` for the full template.
 
-1. Dispatch the reviewer with: prompts directory, plan path, codebase root
-2. If Issues Found: fix the issues, re-dispatch
-3. If Approved: commit prompts
-4. Maximum 5 iterations, then surface to human
+1. **Dispatch the reviewer** with ALL of these inputs:
+   - Prompts directory
+   - **Plan path** — the plan these prompts decompose
+   - **Spec path** — the design spec the plan came from. The plan may
+     have inherited mistakes; the spec captures original intent. Both
+     are required inputs.
+   - Codebase root
+   - **Agent Brain CLI availability** — if the project has
+     `agent-brain-cli` installed (check with `agent-brain-cli --help`),
+     tell the reviewer to use it as the primary verification tool
+     (`impact`, `query --file`, `dead-code`). AB CLI catches transitive
+     callsites, line-range drift, and dead-symbol claims that grep
+     alone misses.
 
-**Review focus:** plan coverage (every task has a prompt), file overlap
-(parallel prompts don't collide), method spot-checks (calls reference real
-code), template compliance, dependency ordering.
+2. **If Issues Found:** fix the issues, re-dispatch.
+3. **If Approved:** commit prompts.
+4. **Maximum 5 iterations**, then surface to human.
+
+**Review focus:** spec scope fidelity, plan coverage, file overlap,
+method spot-checks via AB CLI, line-range sanity, template compliance,
+dependency ordering.
 
 ## Commit
 
