@@ -27,7 +27,27 @@ git diff --stat {BASE_SHA}..{HEAD_SHA}
 git diff {BASE_SHA}..{HEAD_SHA}
 ```
 
+## Structural Analysis Tools
+
+If Agent Brain CLI is available, use it to strengthen your review:
+- `agent-brain-cli impact <project> <symbol> [--depth N]` — blast radius / what depends on a symbol
+- `agent-brain-cli dead-code <project> [--kind function]` — unreferenced symbols the change may have orphaned
+- `agent-brain-cli query <project> --file <path>` — symbols in a file
+- `agent-brain-cli query <project> "search text"` — semantic search
+
+All output is JSON — pipe to `jq` for field extraction.
+
+**When to use:** After reading the diff, extract key changed symbol names (classes, functions) and run `agent-brain-cli impact` to see what depends on them. Then verify those dependents are properly updated. This catches the #1 source of bugs: interface changes with incomplete ripple updates.
+
+If these tools are not available, fall back to grep/glob-based dependency checking.
+
 ## Review Checklist
+
+**Structural Completeness:**
+- All dependents of changed interfaces updated?
+- Test fixtures and mocks match new signatures?
+- No orphaned references to removed/renamed symbols?
+- New symbols referenced by at least one caller?
 
 **Code Quality:**
 - Clean separation of concerns?

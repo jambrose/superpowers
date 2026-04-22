@@ -42,8 +42,11 @@ Agent tool (general-purpose):
        flag as High severity.
 
     3. **Method spot-check**: Pick 3-5 method calls from across the prompts.
-       Verify each method exists on the target class by reading the source
-       file or running `agent-brain-cli impact <project> <ClassName>`.
+       Verify each method exists on the target class.
+       - If Agent Brain CLI is available: `agent-brain-cli query <project> --file <path>` lists symbols on the target file; `agent-brain-cli impact <project> <ClassName>` enumerates callers to help you pick non-trivial methods to verify (don't just sample leaf getters).
+       - If not available: read the source file directly.
+
+       **Beyond existence:** for each sampled method, also check whether the prompt's call matches the method's real signature (arg count, kwarg names, return type). Prompts that invent plausible-looking APIs are a top cause of zero-context execution failures.
 
     4. **Template compliance**: Check that every prompt includes the
        mandatory Deliverables sections (code review dispatch, report line,

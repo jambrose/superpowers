@@ -17,8 +17,14 @@ Task tool (superpowers:code-reviewer):
   DESCRIPTION: [task summary]
 ```
 
-**Structural analysis:** The reviewer should use Agent Brain MCP tools if available
-(`get_dependents`, `impact_analysis`) to verify all callers of changed interfaces are updated.
+**Structural analysis:** The reviewer should use Agent Brain CLI if available:
+- `agent-brain-cli impact <project> <symbol> [--depth N]` — enumerate all dependents of a changed interface
+- `agent-brain-cli dead-code <project> [--kind function]` — symbols the change removed/renamed that still have callers
+- `agent-brain-cli query <project> --file <path>` — verify expected symbols exist in a file
+
+If CLI is not available, grep/glob serves the same purpose with more work. Either way, verifying that every caller of a changed interface is updated is the #1 guard against silent regressions — it's not optional when the change touches an interface.
+
+(Note: older versions of this template referenced MCP tool names like `get_dependents` / `impact_analysis`. Those were the MCP-era API and have been replaced by the CLI shown above.)
 
 **In addition to standard code quality concerns, the reviewer should check:**
 - Does each file have one clear responsibility with a well-defined interface?

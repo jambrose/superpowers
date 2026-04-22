@@ -61,8 +61,20 @@ Agent tool (general-purpose):
        and may be silently dropped. Verify all HTTP endpoints use appropriate methods.
 
     Use grep, glob, and file reads to verify claims. If Agent Brain CLI is
-    available, use `agent-brain-cli query <project> --file <path>` to check
-    that referenced symbols exist and have the expected signatures.
+    available, prefer it:
+    - `agent-brain-cli query <project> --file <path>` — check that referenced symbols exist and have the expected signatures
+    - `agent-brain-cli impact <project> <symbol> [--depth N]` — enumerate callers / blast radius when the plan modifies an interface
+    - `agent-brain-cli dead-code <project> [--kind function]` — catch symbols the plan claims to remove that still have callers
+
+    ### Transitive completeness (catches blast-radius bugs)
+
+    For every symbol the plan modifies, verify the FULL caller / constructor inventory, not just the cited lines:
+
+    - Run `impact <symbol> --depth 1` (or grep the symbol name project-wide) to enumerate ALL callers. Does the plan's "migrate these N callsites" list match the actual inventory? Missed transitive callers are a common blast-radius bug that causes the first executing agent to hit unexpected test failures.
+    - For functions gaining new positional args — confirm every call site is listed in the plan, or flag that the new arg should be keyword-only.
+    - For classes whose constructors the plan modifies — check who constructs them. Middle-layer factories (pipelines, registries, dispatchers) get silently skipped when the plan only discusses the leaf.
+
+    Verifying "line 82 really says what the plan claims" is necessary but not sufficient. "These are all the places that need to change" requires checking the graph, not just the citation.
 
     ## Severity Calibration
 

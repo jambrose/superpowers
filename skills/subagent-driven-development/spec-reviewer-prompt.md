@@ -56,7 +56,9 @@ Task tool (general-purpose):
     **Structural verification:** If Agent Brain CLI is available, use
     `agent-brain-cli query <project> --file <path>` to verify that symbols and files
     referenced in the implementation actually exist, and `agent-brain-cli impact <project> <symbol>`
-    to check for unaccounted-for ripple effects. If unavailable, use grep/glob.
+    to enumerate the full caller inventory. If unavailable, use grep/glob.
+
+    **Transitive completeness check:** For every interface the implementation claims to modify (function signature, class constructor, method), run `impact` (or grep) to list ALL callers. Does the implementation update every one? Missed transitive callers are a top source of "it compiled and passed isolated tests but broke in integration" bugs. Verifying leaf citations is necessary but not sufficient — you must also check the graph edges around them.
 
     **Verify by reading code, not by trusting report.**
 
