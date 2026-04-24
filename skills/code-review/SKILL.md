@@ -91,6 +91,12 @@ Launch **4 parallel Sonnet agents**. Each agent receives:
 
 Each agent MUST include a `## Tools Used` section at the end listing every tool it called.
 
+Each agent MUST also include a `## Files Examined` section listing every path from the
+changed file list that the agent actually looked at, even if no issues were found in it.
+The consolidator (Phase 2.5) uses this to detect silent coverage gaps — a changed file with
+no `Files Examined` entry from any agent is a coverage hole. A bare path list is enough; no
+per-file findings arrays required.
+
 Tell each agent:
 
 > **Structural analysis tools (use when investigating dependencies or blast radius):**
@@ -202,22 +208,27 @@ When async/concurrent patterns are present (any file type):
 Do NOT apply a conditional checklist when its file-type trigger is absent.
 Conditional checklist findings use the same severity scale (Critical/Warning/Minor).
 
-**Systematic checks** — apply these on every review:
+**Systematic checks** — apply these per-site, not per-diff. For each check below, enumerate
+every site in the diff matching the trigger, then apply the check to each site. Do not stop
+at the first site noticed. Emit a finding OR an explicit "checked, no issue" record per site
+so coverage is auditable.
 
-- **Exception type hierarchies:** When code uses `asyncio.timeout`, `contextlib.suppress`,
-  or other exception-based control flow, verify enclosing `except` clauses distinguish the
+- **Exception type hierarchies:** *For each site* using `asyncio.timeout`, `contextlib.suppress`,
+  or other exception-based control flow, verify the enclosing `except` clauses distinguish the
   specific exception from broad catches like `except Exception`. Example: `asyncio.timeout`
   raises `TimeoutError` — if an outer `except Exception` catches it, timeout handling is
-  silently wrong.
-- **Error isolation at every call level:** When the code claims error isolation (one component's
-  failure doesn't block others), verify the isolation exists at every call level, not just the
-  innermost. A try/except inside a function is not isolation if the caller's loop doesn't also
-  wrap the call.
+  silently wrong. List every site you checked.
+- **Error isolation at every call level:** *For each site* where the code claims error isolation
+  (one component's failure doesn't block others), walk the call chain and verify the isolation
+  exists at every level, not just the innermost. A try/except inside a function is not isolation
+  if the caller's loop doesn't also wrap the call. Name each call chain you walked.
 - **Cross-instance consistency:** When you flag an issue on one instance of a pattern (e.g., a
-  missing date window on one detector), systematically check all sibling instances of the same
-  pattern. Don't stop at the first one you find.
-- **SQL DDL constraints:** For new table definitions, verify NOT NULL constraints on columns
-  that should never be NULL (especially booleans, timestamps, required foreign keys).
+  missing date window on one detector), *enumerate every sibling instance of the same pattern in
+  the diff* and report the check result on each — found issue, verified OK, or unable to determine.
+  Don't stop at the first.
+- **SQL DDL constraints:** *For each new `CREATE TABLE` or `ALTER TABLE` adding columns*, verify
+  NOT NULL constraints on columns that should never be NULL (especially booleans, timestamps,
+  required foreign keys). List every DDL statement you evaluated.
 
 Return a list of issues with severity, file:line, and explanation.
 Include the mermaid diagram inline for each Critical issue.
@@ -258,18 +269,101 @@ Skip this check entirely in local mode.
 
 #### Agent 4 — Historical Context
 
-Focus: git blame, prior PRs, recurring patterns.
+Focus: prior-PR echoes and dismissed reviewer comments that may have resurfaced.
+Narrowed from "interpret git history" because generic blame commentary rarely produces
+actionable findings. Restrict yourself to the two specific signals below.
 
-- Run git blame on modified sections to understand history
-- Find prior PRs that touched these files and check their comments
-- Look for issues that were flagged before and may apply here
+**Scope — do only these two things:**
 
-Return a list of issues with file:line and explanation.
+1. **Prior-PR touches on the same symbols.** For each symbol changed in this diff, find prior
+   PRs that modified the same symbol or file. Pull their reviewer comments. Flag any concern
+   raised then that appears to apply to the current change — same pattern, same risk surface.
+   Cite the prior PR number and the specific comment.
+
+2. **Dismissed / unaddressed comments resurfacing.** For each file in this diff, scan prior PRs
+   touching it for reviewer comments that were dismissed (resolved without code change),
+   declined, or left unanswered. If the current change re-introduces the pattern the prior
+   comment flagged, surface it — the prior dismissal does NOT mean the concern was wrong, and
+   the Prior-Review Floor rule in Phase 3 will score it accordingly.
+
+Do NOT produce generic "this file has a long history" or "this pattern was established in
+commit X" commentary. If you cannot cite a specific prior reviewer comment or a concrete
+prior-PR concern that re-applies, report nothing for that file.
+
+Return a list of issues with file:line, the prior-PR reference (number + commit SHA), and
+explanation of why the prior concern applies now.
+
+### Phase 2.5 — Consolidator
+
+The four specialists ran in parallel; none saw the others' output. This phase is the only
+one whose job is cross-specialist integration — finding issues that emerge *only* when
+you see all the findings together.
+
+Launch **one serial Sonnet agent** (read-only). Give it:
+- The full Phase 2 output from all four agents (findings + `## Files Examined` + `## Tools Used`)
+- The changed file list
+- The diff
+- The impact analysis results from Phase 1
+
+Tool budget: `agent-brain-cli query/impact`, `grep`, `git show`. Do NOT re-read source files
+already covered by the specialists — this phase integrates, it doesn't re-review.
+
+Instructions to the consolidator (paste verbatim):
+
+> You are NOT re-evaluating whether the specialists' findings are correct — that's Phase 3.
+> Your job is to find issues the specialists missed because each was looking at one dimension.
+> Do four things in order:
+>
+> 1. **Cross-instance sweep.** For each specialist finding, check whether the same pattern
+>    exists elsewhere in the diff that wasn't flagged. Use `agent-brain-cli query` or `grep`
+>    to find sibling occurrences. If the pattern is wrong in one place, it's likely wrong in
+>    others. Emit any missed sibling as a new finding.
+>
+> 2. **Cross-cutting integration.** Look for issues that require two specialists' views at once.
+>    Example: Agent 1 found a new symbol. Agent 2 didn't null-check its callers because Agent 2
+>    was focused on changed lines. The cross-cutting issue is "new symbol X is assumed non-null
+>    by caller Y, but X can return null on error path Z." Only surface issues that require
+>    integrating outputs — if one specialist could have found it alone, skip.
+>
+> 3. **Coverage audit.** Walk the changed file list. For each file, check whether it appears
+>    in at least one agent's `## Files Examined` section. For any file that does NOT appear,
+>    read the diff for that file and judge: is the silence correct (file really is fine) or
+>    suspicious (non-trivial change nobody reviewed)? Flag suspicious silences as findings.
+>
+> 4. **Contradiction check.** Scan for findings where two specialists disagree — e.g., Agent 2
+>    calls pattern X a bug while Agent 4 cites a prior PR where X was chosen deliberately.
+>    Surface the contradiction as a distinct finding so Phase 3 can weigh both sides.
+>
+> **Dedup rule:** If something you notice is only cosmetically different from a finding a
+> specialist already made, DROP it. Redundancy distorts Phase 3's relative-ranking scoring
+> since the rubric considers the batch together.
+>
+> Return new findings using the same schema as the specialists (file:line, severity, explanation,
+> mermaid diagram if Critical). Do NOT re-report findings the specialists already made.
+> Include a `## Tools Used` section. Include a `## Integration Notes` section summarizing
+> what you checked and what you explicitly decided was fine (audit trail).
+
+### Phase 2.75 — Context Enrichment
+
+Mechanical batch step, no LLM. For every finding from Phase 2 + Phase 2.5 that has a
+`file:line` anchor:
+
+1. Extract the hunk from the diff that contains the line.
+2. Read the surrounding file context: line − 20 to line + 20 (clamp to file bounds).
+3. Attach both as `diff_hunk` and `file_context` fields on the finding before Phase 3 sees it.
+
+This gives Phase 3 a verifiable local window per issue without requiring each scorer to
+scan the full diff for the right hunk. Batch this centrally — do not make each specialist
+emit context, or you get inconsistency and duplicate reads.
+
+Findings that cannot be mapped to a diff line (e.g., "missing code that should exist")
+skip enrichment and flow through to Phase 3 with only their description.
 
 ### Phase 3 — Scoring
 
-Collect **all issues** from Phase 2 (excluding Agent 3's advisory scope notes) and
-launch **one or two parallel Sonnet agents** to score the full batch. Each agent receives
+Collect **all issues** from Phase 2 and Phase 2.5 (excluding Agent 3's advisory scope notes),
+enriched by Phase 2.75 with diff hunks + file context, and launch **one or two parallel Sonnet
+agents** to score the full batch. Each agent receives
 all issues together so it can rank relative importance — an issue that looks minor in
 isolation may be the most important finding when seen alongside the others.
 
@@ -311,6 +405,13 @@ Scoring rubric (give this verbatim to each agent):
 > failure path (data loss, silent errors, resource leaks). Do NOT treat author
 > acknowledgment as evidence that the risk was "accepted" — treat it as evidence
 > the issue is definitely real.
+>
+> **Prior-Review Floor rule:** If Agent 4 (Historical Context) reports that a prior PR's
+> reviewer comment flagged this exact issue and the comment was dismissed, declined, or
+> left unaddressed, score at minimum 80. Human reviewers don't re-flag things casually —
+> treat the re-surfacing as evidence the issue is real and the prior dismissal was wrong.
+> This rule requires the finding to cite a specific prior-PR comment (number + SHA),
+> not generic historical commentary.
 >
 > **CLAUDE.md issues:** Double-check that CLAUDE.md actually calls out this issue
 > specifically. A general "good practice" not in CLAUDE.md scores lower than one
