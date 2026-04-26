@@ -64,15 +64,31 @@ For every symbol the spec cites or proposes to modify, verify the FULL inventory
 - **Performance & Lifecycle**: Flag designs that introduce serial blocking during startup, resource leaks, or inefficient I/O.
 - **Integration Integrity**: Check that the plan correctly identifies the symbols/files to be modified. Flag plans that rely on brittle line numbers instead of symbol-based targeting.
 
+### 7. Failure-Mode Discipline (catches state, restart, atomicity, and rare-event bugs)
+
+Sections 1–6 verify the plan accurately describes itself. Section 7 verifies the plan holds up when something goes wrong. For every piece of stateful data the plan introduces or mutates, walk the five questions below. If the plan does not state the answer, flag it.
+
+- **State lifecycle.** Where does each piece of stateful data live (in-memory, on-disk, both)? Where is it created, mutated, and destroyed? Is the lifecycle stated end-to-end, including across components?
+- **Process boundary.** Which state survives a process restart? If the plan introduces in-memory state that mirrors or interacts with on-disk state, is the reconciliation strategy explicit? On a fresh restart, what does the design assume about pre-existing on-disk state — and is that assumption true on every code path that creates the on-disk state in the first place?
+- **Partial failure.** If step N raises and step N+1 doesn't run, is the system in a consistent state? Are operations atomic at the granularity that matters? For each multi-step operation, trace a "step 2 raises" scenario and verify both the cache/in-memory state AND the persistent state end up consistent (or at minimum, recoverable on the next event).
+- **Rare event types.** For event-handling code, do `move`, `delete`, `error`, `cancel`, signal-handler, and concurrency paths get the same care as the happy path? Walk the spec for events whose names appear without explicit treatment of *both* sides of the event (e.g., a move event has both a source path and a destination path; both must be addressed).
+- **Cross-component invariants.** For any invariant that spans two components (cache ↔ store, in-memory ↔ on-disk, event-source ↔ event-handler), who owns enforcing it? Is the invariant stated where a future maintainer will look — i.e., not buried in one chunk's prose?
+
+A finding from Section 7 is **High severity by default** unless the plan explicitly addresses it.
+
+This section exists because earlier review templates (and this skill before its addition) systematically missed bugs spanning component boundaries — cache that survives across restarts vs. graph that doesn't, prune-then-scan ordering that leaves stale state on partial failure, move events that drop the source path. These are not exotic bugs; they are the bugs that bite production. The five questions above are the minimum lens for catching them.
+
 ## Severity Calibration
 
 Rank issues by actual system impact, not process ceremony:
 
-1. **High Impact**: Would cause runtime failure, data loss, security issue, or architectural regression.
+1. **High Impact**: Would cause runtime failure, data loss, security issue, or architectural regression. Includes Section 7 findings the plan does not explicitly address.
 2. **Medium Impact**: Would cause implementer confusion, test gaps, or maintenance burden.
 3. **Low Impact**: Style, naming, wording, nice-to-have improvements.
 
 **Do NOT rate process ceremony (missing formatting, section ordering) higher than actual system defects.**
+
+**Do NOT downgrade an issue's severity because "the existing codebase has the same antipattern."** When a plan adds a new call site whose correctness depends on a fragile pattern being correct, the plan inherits the bug. Severity Medium minimum, regardless of whether the original site was previously flagged.
 
 ## Output Rules
 
