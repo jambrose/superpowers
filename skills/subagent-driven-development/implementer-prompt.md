@@ -45,7 +45,7 @@ Task tool (general-purpose):
 
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
+    2. Write a failing test FIRST — no production code before a failing test exists (Three Laws of TDD: always required, never conditional)
     3. Verify implementation works
     4. Commit your work
     5. Self-review (see below)
@@ -107,7 +107,7 @@ Task tool (general-purpose):
 
     **Testing:**
     - Do tests actually verify behavior (not just mock behavior)?
-    - Did I follow TDD if required?
+    - Did I write the failing test BEFORE the implementation? (TDD is always required — not conditional on what the task says)
     - Are tests comprehensive?
 
     If you find issues during self-review, fix them now before reporting.
