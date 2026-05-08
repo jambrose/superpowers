@@ -1,54 +1,46 @@
 ---
 name: brainstorming
-description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
+description: "Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Explores intent, requirements, and design through collaborative dialogue. Produces a brainstorm artifact that feeds the writing-spec skill. Does NOT write a spec."
 ---
 
 # Brainstorming Ideas Into Designs
 
-Help turn ideas into fully formed designs and specs through natural collaborative dialogue.
+Help turn ideas into fully formed designs through natural collaborative dialogue. The output is a **brainstorm artifact** — a structured summary of decisions, discoveries, and scope — not a spec. The spec is written by the `writing-spec` skill, which starts with fresh context and uses the artifact as its sole input.
 
-Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design and get user approval.
+## HARD-GATE
 
 <HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
+Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity. Do NOT invoke `writing-spec` until the user has approved the brainstorm artifact.
 </HARD-GATE>
 
 ## Anti-Pattern: "This Is Too Simple To Need A Design"
 
 Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
 
-## Checklist
-
-You MUST create a task for each of these items and complete them in order:
-
-1. **Explore project context** — check files, docs, recent commits
-2. **Offer visual companion** (if topic will involve visual questions) — this is its own message, not combined with a clarifying question. See the Visual Companion section below.
-3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
-4. **Propose 2-3 approaches** — with trade-offs and your recommendation
-5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write design doc** — save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` and commit
-7. **Spec review loop** — dispatch spec-document-reviewer subagent with precisely crafted review context (never your session history); fix issues and re-dispatch until approved (max 5 iterations, then surface to human)
-8. **User reviews written spec** — ask user to review the spec file before proceeding
-9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
-
 ## Process Flow
 
 ```dot
 digraph brainstorming {
     "Explore project context" [shape=box];
+    "Assess scope" [shape=diamond];
+    "Flag decomposition" [shape=box];
     "Visual questions ahead?" [shape=diamond];
     "Offer Visual Companion\n(own message, no other content)" [shape=box];
     "Ask clarifying questions" [shape=box];
     "Propose 2-3 approaches" [shape=box];
     "Present design sections" [shape=box];
     "User approves design?" [shape=diamond];
-    "Write design doc" [shape=box];
-    "Spec review loop" [shape=box];
-    "Spec review passed?" [shape=diamond];
-    "User reviews spec?" [shape=diamond];
-    "Invoke writing-plans skill" [shape=doublecircle];
+    "Self-review checklist" [shape=box];
+    "All items pass?" [shape=diamond];
+    "Surface issues to user" [shape=box];
+    "Write brainstorm artifact" [shape=box];
+    "User reviews artifact?" [shape=diamond];
+    "Invoke writing-spec skill" [shape=doublecircle];
 
-    "Explore project context" -> "Visual questions ahead?";
+    "Explore project context" -> "Assess scope";
+    "Assess scope" -> "Flag decomposition" [label="multiple\nsubsystems"];
+    "Assess scope" -> "Visual questions ahead?" [label="single sprint"];
+    "Flag decomposition" -> "Visual questions ahead?" [label="after scoping"];
     "Visual questions ahead?" -> "Offer Visual Companion\n(own message, no other content)" [label="yes"];
     "Visual questions ahead?" -> "Ask clarifying questions" [label="no"];
     "Offer Visual Companion\n(own message, no other content)" -> "Ask clarifying questions";
@@ -56,121 +48,141 @@ digraph brainstorming {
     "Propose 2-3 approaches" -> "Present design sections";
     "Present design sections" -> "User approves design?";
     "User approves design?" -> "Present design sections" [label="no, revise"];
-    "User approves design?" -> "Write design doc" [label="yes"];
-    "Write design doc" -> "Spec review loop";
-    "Spec review loop" -> "Spec review passed?";
-    "Spec review passed?" -> "Spec review loop" [label="issues found,\nfix and re-dispatch"];
-    "Spec review passed?" -> "User reviews spec?" [label="approved"];
-    "User reviews spec?" -> "Write design doc" [label="changes requested"];
-    "User reviews spec?" -> "Invoke writing-plans skill" [label="approved"];
+    "User approves design?" -> "Self-review checklist" [label="yes"];
+    "Self-review checklist" -> "All items pass?";
+    "All items pass?" -> "Surface issues to user" [label="no"];
+    "Surface issues to user" -> "Self-review checklist" [label="resolved"];
+    "All items pass?" -> "Write brainstorm artifact" [label="yes"];
+    "Write brainstorm artifact" -> "User reviews artifact?";
+    "User reviews artifact?" -> "Write brainstorm artifact" [label="changes\nrequested"];
+    "User reviews artifact?" -> "Invoke writing-spec skill" [label="approved"];
 }
 ```
 
-**The terminal state is invoking writing-plans.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is writing-plans.
+## Checklist
 
-## The Process
+You MUST create a task for each of these items and complete them in order:
 
-**Understanding the idea:**
+1. **Explore project context** — check files, docs, recent commits
+2. **Assess scope** — if the request describes multiple independent subsystems, flag for decomposition before asking detailed questions
+3. **Offer visual companion** (if topic involves visual questions) — own message only, wait for response
+4. **Ask clarifying questions** — one at a time, understand purpose, constraints, success criteria
+5. **Propose 2-3 approaches** — with tradeoffs and your recommendation
+6. **Present design** — in sections scaled to complexity, get user approval after each section
+7. **Self-review** — run the pre-write checklist; surface any failures to the user before writing
+8. **Write brainstorm artifact** — save to `docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md`, commit
+9. **User reviews artifact** — present for review, wait for approval or changes
+10. **Invoke writing-spec skill** — the only skill you invoke after brainstorming
 
-- Check out the current project state first (files, docs, recent commits)
-- Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
-- If the project is too large for a single spec, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own spec → plan → implementation cycle.
-- For appropriately-scoped projects, ask questions one at a time to refine the idea
-- Prefer multiple choice questions when possible, but open-ended is fine too
-- Only one question per message - if a topic needs more exploration, break it into multiple questions
-- Focus on understanding: purpose, constraints, success criteria
+## Self-Review Checklist (Step 7)
 
-**Exploring approaches:**
+Before writing the artifact, check every item. If any fail, surface to the user before writing — do not write an artifact with unresolved issues baked in.
 
-- Propose 2-3 different approaches with trade-offs
-- Present options conversationally with your recommendation and reasoning
-- Lead with your recommended option and explain why
+- [ ] Sprint goal fits one PR/sprint of work (not multiple independent concerns)
+- [ ] Problem is grounded — verified against actual codebase, not assumed. "I think X works like Y" must become "X is at file.py:42 and does Y"
+- [ ] All key decisions captured with their rationale (not just the outcome)
+- [ ] Scope has explicit IN and explicit OUT — not just "we'll add X" but "we won't add Y in this sprint"
+- [ ] Candidate FEAT-IDs are ≤ 5. If more needed, flag for decomposition into a follow-up sprint
+- [ ] Open questions are listed explicitly — not buried in conversation history
+- [ ] Technical discoveries (code snippets, API signatures, method locations) are documented so the spec-writing agent can reference them without the conversation context
 
-**Presenting the design:**
+## Brainstorm Artifact Format
 
-- Once you believe you understand what you're building, present the design
-- Scale each section to its complexity: a few sentences if straightforward, up to 200-300 words if nuanced
-- Ask after each section whether it looks right so far
-- Cover: architecture, components, data flow, error handling, testing
-- Be ready to go back and clarify if something doesn't make sense
+Save to `docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md`. Project preferences for location override this default.
 
-**Design for isolation and clarity:**
+```markdown
+# [Topic] — Brainstorm Artifact
 
-- Break the system into smaller units that each have one clear purpose, communicate through well-defined interfaces, and can be understood and tested independently
-- For each unit, you should be able to answer: what does it do, how do you use it, and what does it depend on?
-- Can someone understand what a unit does without reading its internals? Can you change the internals without breaking consumers? If not, the boundaries need work.
-- Smaller, well-bounded units are also easier for you to work with - you reason better about code you can hold in context at once, and your edits are more reliable when files are focused. When a file grows large, that's often a signal that it's doing too much.
+**Date**: YYYY-MM-DD
+**Status**: DRAFT
+**Sprint goal**: [one sentence — what ships in this sprint, scoped for one PR]
 
-**Working in existing codebases:**
+## Problem Statement
 
-- Explore the current structure before proposing changes. Follow existing patterns.
-- Where existing code has problems that affect the work (e.g., a file that's grown too large, unclear boundaries, tangled responsibilities), include targeted improvements as part of the design - the way a good developer improves code they're working in.
-- Don't propose unrelated refactoring. Stay focused on what serves the current goal.
+[Grounded problem. Verified against codebase. Include file:line references where applicable.]
 
-## After the Design
+## Technical Discoveries
 
-**Documentation:**
+[Code snippets, API signatures, method locations, patterns found during brainstorm.
+Captured here so the spec-writing agent can use them without needing the conversation context.]
 
-- Write the validated design (spec) to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
-  - (User preferences for spec location override this default)
-- Use elements-of-style:writing-clearly-and-concisely skill if available
-- Commit the design document to git
+## Approach Selected
 
-**Spec Review Loop:**
-After writing the spec document:
+[Which option was chosen and why. If only one option was viable, say so.]
 
-1. Dispatch spec-document-reviewer subagent (see spec-document-reviewer-prompt.md)
-2. If Issues Found: fix, re-dispatch, repeat until Approved
-3. If loop exceeds 5 iterations, surface to human for guidance
+## Decisions
 
-**User Review Gate:**
-After the spec review loop passes, ask the user to review the written spec before proceeding:
+| Decision | Rationale |
+|----------|-----------|
+| ... | ... |
 
-> "Spec written and committed to `<path>`. Please review it and let me know if you want to make any changes before we start writing out the implementation plan."
+## Scope
 
-Wait for the user's response. If they request changes, make them and re-run the spec review loop. Only proceed once the user approves.
+### In Scope
+- [explicit list]
 
-**Implementation:**
+### Out of Scope
+- [explicit list — things that came up and were consciously excluded]
 
-- Invoke the writing-plans skill to create a detailed implementation plan
-- Do NOT invoke any other skill. writing-plans is the next step.
+## Candidate FEAT-IDs
+
+<!-- Max 5. If more needed, split into a follow-up sprint. -->
+- FEAT-001: [Name] — [one-line description]
+
+## Constraints & Dependencies
+
+[Prerequisites, external dependencies, ordering constraints]
+
+## Open Questions
+
+<!-- Must be empty (all resolved) before invoking writing-spec -->
+- [ ] [Question that needs resolution before the spec can be written]
+```
+
+## After Writing the Artifact
+
+1. Commit the artifact to git
+2. Present to user: "Brainstorm artifact written to `<path>`. Please review — in particular, check that the Open Questions section is empty and the scope feels right before I hand off to the spec writer."
+3. Wait for approval or changes
+4. Once approved: invoke `writing-spec` skill
+
+**The only skill you invoke after brainstorming is `writing-spec`.** Do NOT invoke `writing-plans`, `writing-execution-prompts`, or any implementation skill directly. Do NOT write the spec yourself — that is the spec writer's job with fresh context.
 
 ## Key Principles
 
-- **One question at a time** - Don't overwhelm with multiple questions
-- **Multiple choice preferred** - Easier to answer than open-ended when possible
-- **YAGNI ruthlessly** - Remove unnecessary features from all designs
-- **Explore alternatives** - Always propose 2-3 approaches before settling
-- **Incremental validation** - Present design, get approval before moving on
-- **Be flexible** - Go back and clarify when something doesn't make sense
-- **Ground claims in code** - When proposing how to integrate with existing code, read
-  the actual files first. Don't assume APIs, signatures, or patterns — verify them.
-  "I think component X works like Y" must become "component X at file.py:42 does Y"
-  before it enters a design decision.
+**One question at a time** — Don't overwhelm with multiple questions. If a topic needs more exploration, break it into multiple sequential questions.
+
+**Multiple choice preferred** — Easier to answer than open-ended when options are known.
+
+**Ground claims in code** — When proposing how to integrate with existing code, read the actual files first. Don't assume APIs, signatures, or patterns — verify them.
+
+**YAGNI ruthlessly** — Remove unnecessary features from all designs. Every "nice to have" that makes it into the artifact is a spec requirement that makes the plan larger.
+
+**Scope discipline** — Before asking detailed questions, assess whether the request describes multiple independent subsystems. If yes, flag for decomposition immediately. Don't spend questions refining a project that needs to be split first.
+
+**Incremental validation** — Present design sections one at a time, get approval before moving on.
+
+**Design for isolation and clarity** — Break systems into units that each have one clear purpose, communicate through well-defined interfaces, and can be understood and tested independently. For each unit: what does it do, how do you use it, what does it depend on?
+
+**Explore before proposing** — Check the current project state first. Follow existing patterns. Where existing code has problems that affect the work, include targeted improvements as part of the design.
 
 ## Visual Companion
 
-A browser-based companion for showing mockups, diagrams, and visual options during brainstorming. Available as a tool — not a mode. Accepting the companion means it's available for questions that benefit from visual treatment; it does NOT mean every question goes through the browser.
+A browser-based companion for showing mockups, diagrams, and visual options during brainstorming. Not a mode — a tool available for questions that benefit from visual treatment.
 
-**Offering the companion:** When you anticipate that upcoming questions will involve visual content (mockups, layouts, diagrams), offer it once for consent:
+**Offering the companion:** When you anticipate upcoming questions will involve visual content, offer it once as its own message — no other content in that message:
+
 > "Some of what we're working on might be easier to explain if I can show it to you in a web browser. I can put together mockups, diagrams, comparisons, and other visuals as we go. This feature is still new and can be token-intensive. Want to try it? (Requires opening a local URL)"
 
-**This offer MUST be its own message.** Do not combine it with clarifying questions, context summaries, or any other content. The message should contain ONLY the offer above and nothing else. Wait for the user's response before continuing. If they decline, proceed with text-only brainstorming.
+**Per-question decision:** Even after the user accepts, decide for each question whether to use the browser or the terminal.
 
-**Per-question decision:** Even after the user accepts, decide FOR EACH QUESTION whether to use the browser or the terminal. The test: **would the user understand this better by seeing it than reading it?**
+- **Use the terminal** for text content — requirements questions, conceptual choices, tradeoff lists, A/B text options, scope decisions
+- **Use the browser** for visual content — mockups, wireframes, layout comparisons, architecture diagrams
 
-- **Use the browser** for content that IS visual — mockups, wireframes, layout comparisons, architecture diagrams, side-by-side visual designs
-- **Use the terminal** for content that is text — requirements questions, conceptual choices, tradeoff lists, A/B/C/D text options, scope decisions
-
-A question about a UI topic is not automatically a visual question. "What does personality mean in this context?" is a conceptual question — use the terminal. "Which wizard layout works better?" is a visual question — use the browser.
-
-If they agree to the companion, read the detailed guide before proceeding:
-`skills/brainstorming/visual-companion.md`
-
-## Interactive Playground
-
-When the brainstorming topic involves **relationships, flows, or topology** — component graphs, message routing, dependency maps, architecture options — suggest the Playground plugin for interactive HTML exploration. Example prompt to the user:
+**Interactive Playground:** When the topic involves relationships, flows, or topology, suggest the Playground plugin for interactive HTML exploration:
 
 > "This involves a lot of interconnected parts. I can spin up an interactive playground where you can click through the relationships and explore visually. Want me to try that?"
 
-Use Playground when: the user would benefit from *manipulating* the visualization (clicking nodes, toggling options, exploring paths), not just *seeing* it. If a static diagram suffices, use the Visual Companion instead.
+Use Playground when the user would benefit from manipulating the visualization, not just seeing it. If a static diagram suffices, use the Visual Companion instead.
+
+If the user agrees to the companion, read `skills/brainstorming/visual-companion.md` before proceeding.
