@@ -84,7 +84,7 @@ Follow these phases precisely. Make a todo list first.
 
 ### Phase 2 — Parallel Review
 
-Launch **4 parallel Sonnet agents**. Each agent receives:
+Launch **4 parallel specialized reviewer sub-agents** (one for each role defined below: Structural Completeness, Bugs & Logic, Compliance & Conventions, and Historical Context). Each reviewer sub-agent receives:
 - The diff (or relevant portions)
 - The changed file list
 - The structural context from Phase 1 (impact analysis results)
@@ -98,6 +98,20 @@ no `Files Examined` entry from any agent is a coverage hole. A bare path list is
 per-file findings arrays required.
 
 Tell each agent:
+
+**Critical Orchestration Rules (Mandatory — required for reliable behavior on Grok):**
+
+You **must** follow these rules exactly. Do not weaken or skip them.
+
+1. Use your system's proper sub-agent spawning mechanism (`spawn_subagent` / Task tool). When your harness supports persona injection, launch the reviewers using the `reviewer` persona defined in this skill's `code-reviewer.md`.
+2. Launch **all four reviewers in parallel** using background execution (`run_in_background: true` or the harness equivalent). Never launch them serially.
+3. Capture and store the `subagent_id` (or task ID) returned for each of the four.
+4. **Hard synchronization barrier (non-negotiable):**  
+   You are **forbidden** from launching the Consolidator (Phase 2.5), starting scoring (Phase 3), or producing any final report until you have received the *complete finished output* from **all four** reviewer sub-agents.
+5. Actively wait for every reviewer using the blocking wait primitive your system provides (`get_task_output(id, block: true)` or equivalent). You must not proceed until the last one has returned.
+6. Only after all four have returned their full output (including the required `## Tools Used` and `## Files Examined` sections) may you continue to Phase 2.5.
+
+Claude already waits correctly by default. These explicit rules make the same reliable waiting behavior mandatory for Grok.
 
 > **Structural analysis tools (use when investigating dependencies or blast radius):**
 > If Agent Brain CLI is available in this project, you can use:
@@ -299,7 +313,7 @@ The four specialists ran in parallel; none saw the others' output. This phase is
 one whose job is cross-specialist integration — finding issues that emerge *only* when
 you see all the findings together.
 
-Launch **one serial Sonnet agent** (read-only). Give it:
+Launch **one serial reviewer sub-agent** (read-only, the Consolidator). Give it:
 - The full Phase 2 output from all four agents (findings + `## Files Examined` + `## Tools Used`)
 - The changed file list
 - The diff
@@ -362,13 +376,11 @@ skip enrichment and flow through to Phase 3 with only their description.
 ### Phase 3 — Scoring
 
 Collect **all issues** from Phase 2 and Phase 2.5 (excluding Agent 3's advisory scope notes),
-enriched by Phase 2.75 with diff hunks + file context, and launch **one or two parallel Sonnet
-agents** to score the full batch. Each agent receives
+enriched by Phase 2.75 with diff hunks + file context, and launch **one or two parallel scoring sub-agents** to score the full batch. Each agent receives
 all issues together so it can rank relative importance — an issue that looks minor in
 isolation may be the most important finding when seen alongside the others.
 
-Scoring uses Sonnet (not Haiku) because this is the quality gate that determines output
-noise vs signal — Sonnet's stronger reasoning reduces false positives and preserves real bugs.
+Use a strong reasoning model for scoring (the quality gate that determines output noise vs signal). Stronger reasoning reduces false positives and preserves real bugs. When your harness supports it, prefer the highest-capability model available for this phase.
 
 Give each scoring agent:
 - The **full list of issues** to score (with descriptions and mermaid diagrams if present)
