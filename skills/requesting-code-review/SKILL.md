@@ -5,101 +5,58 @@ description: Use when completing tasks, implementing major features, or before m
 
 # Requesting Code Review
 
-Dispatch superpowers:code-reviewer subagent to catch issues before they cascade. The reviewer gets precisely crafted context for evaluation — never your session's history. This keeps the reviewer focused on the work product, not your thought process, and preserves your own context for continued work.
+Dispatch a **real** `superpowers:code-reviewer` subagent after completing work. The goal is to catch issues early before they compound. The reviewer must receive clean, focused context — never your full session history.
 
-**Core principle:** Review early, review often.
+**Core principle:** Review early, review often. The review step is mandatory, not optional.
 
 ## When to Request Review
 
 **Mandatory:**
-- After each task in subagent-driven development
-- After completing major feature
-- Before merge to main
+- After each task in subagent-driven development or atomic prompts
+- After completing a major feature or chunk
+- Before merging to main
 
 **Optional but valuable:**
-- When stuck (fresh perspective)
-- Before refactoring (baseline check)
-- After fixing complex bug
+- When stuck
+- Before a big refactor
+- After fixing a complex bug
 
-## How to Request
+## How to Request a Real Review (Explicit Instructions)
 
-**1. Get git SHAs:**
+**1. Capture the git SHAs**
 ```bash
-BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main
+BASE_SHA=$(git rev-parse HEAD~1)
 HEAD_SHA=$(git rev-parse HEAD)
 ```
 
-**2. Dispatch code-reviewer subagent:**
+**2. Dispatch the reviewer sub-agent — do this literally**
 
-Use Task tool with superpowers:code-reviewer type, fill template at `code-reviewer.md`
+When your prompt reaches either of these triggers:
+- "Code review: dispatch `superpowers:code-reviewer` subagent"
+- A block beginning with `Agent tool (superpowers:code-reviewer):`
 
-**Placeholders:**
-- `{WHAT_WAS_IMPLEMENTED}` - What you just built
-- `{PLAN_OR_REQUIREMENTS}` - What it should do
-- `{BASE_SHA}` - Starting commit
-- `{HEAD_SHA}` - Ending commit
-- `{DESCRIPTION}` - Brief summary
-
-**3. Act on feedback:**
-- Fix Critical issues immediately
-- Fix Important issues before proceeding
-- Note Minor issues for later
-- Push back if reviewer is wrong (with reasoning)
-
-## Example
+You **must** output the following exact block (this is the syntax that actually creates a real sub-agent in Grok Build):
 
 ```
-[Just completed Task 2: Add verification function]
-
-You: Let me request code review before proceeding.
-
-BASE_SHA=$(git log --oneline | grep "Task 1" | head -1 | awk '{print $1}')
-HEAD_SHA=$(git rev-parse HEAD)
-
-[Dispatch superpowers:code-reviewer subagent]
-  WHAT_WAS_IMPLEMENTED: Verification and repair functions for conversation index
-  PLAN_OR_REQUIREMENTS: Task 2 from docs/superpowers/plans/deployment-plan.md
-  BASE_SHA: a7981ec
-  HEAD_SHA: 3df7661
-  DESCRIPTION: Added verifyIndex() and repairIndex() with 4 issue types
-
-[Subagent returns]:
-  Strengths: Clean architecture, real tests
-  Issues:
-    Important: Missing progress indicators
-    Minor: Magic number (100) for reporting interval
-  Assessment: Ready to proceed
-
-You: [Fix progress indicators]
-[Continue to Task 3]
+Spawn sub-agent: superpowers:code-reviewer
+WHAT_WAS_IMPLEMENTED: [one-sentence summary of what was just implemented in this chunk]
+PLAN_OR_REQUIREMENTS: [e.g. "Chunk 4 (Tasks 4.1–4.6) of docs/plans/2026-05-14-async-admin-tasks.md — FEAT-002 handler routing"]
+BASE_SHA: ${BASE_SHA}
+HEAD_SHA: ${HEAD_SHA}
+DESCRIPTION: [short description of the changes]
 ```
 
-## Integration with Workflows
+**3. Wait for the sub-agent to complete**
 
-**Subagent-Driven Development:**
-- Review after EACH task
-- Catch issues before they compound
-- Fix before moving to next task
+Do **not** write your final Report or mark the task as COMPLETE until the sub-agent has finished and returned its structured review (with Critical / Important / Minor issues).
 
-**Executing Plans:**
-- Review after each batch (3 tasks)
-- Get feedback, apply, continue
+**Critical Rule:**  
+You are not allowed to claim “Review: PASS”, “subagent dispatched”, or “findings addressed” until you have actually received and processed output from a **real** spawned `superpowers:code-reviewer` sub-agent. If you have not yet received the reviewer’s report, you must continue waiting or explicitly spawn it.
 
-**Ad-Hoc Development:**
-- Review before merge
-- Review when stuck
+**4. Act on the feedback**
+- Fix all **Critical** issues immediately.
+- Fix all **Important** issues before moving to the next task.
+- Note **Minor** issues for later.
+- You may push back on any finding with clear technical evidence.
 
-## Red Flags
-
-**Never:**
-- Skip review because "it's simple"
-- Ignore Critical issues
-- Proceed with unfixed Important issues
-- Argue with valid technical feedback
-
-**If reviewer wrong:**
-- Push back with technical reasoning
-- Show code/tests that prove it works
-- Request clarification
-
-See template at: requesting-code-review/code-reviewer.md
+See the reviewer template at: `requesting-code-review/code-reviewer.md`
