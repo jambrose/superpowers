@@ -1,5 +1,18 @@
 # Changelog
 
+## [5.1.6] - 2026-05-17
+
+### Fixed / Improved
+
+- **code-review skill (Grok compatibility)**: Major fixes to make the `/code-review` skill work reliably on Grok:
+  - Corrected subagent launch parameters (`subagent_type: "general-purpose" + persona: "reviewer"`, `background: false`).
+  - Replaced impossible "hard synchronization barrier" rules with practical Grok-aware guidance.
+  - Added explicit requirement to disclose when subagents fail to return output (prevents false claims that parallel reviewers ran).
+  - Added "Grok vs Claude Execution Notes" section with recommended settings.
+  - Updated Consolidator instructions to handle subagent retrieval failures gracefully.
+
+This resolves the root cause of misleading review reports when using the code-review skill on Grok.
+
 ## [5.0.5] - 2026-03-17
 
 ### Fixed

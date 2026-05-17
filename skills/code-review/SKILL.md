@@ -12,6 +12,19 @@ Review code changes using parallel review agents with structural analysis.
 - **PR mode:** `$ARGUMENTS` is a number (e.g., `86`, `#86`) → reviews a pull request, posts comment to PR
 - **Local mode:** no arguments or `--staged` → reviews uncommitted local changes
 
+## Grok vs Claude Execution Notes
+
+This skill was originally written for Claude’s `Task` tool. On Grok, `spawn_subagent` creates **independent child sessions** with their own context windows.
+
+**Recommended settings for the four code reviewers (verified working):**
+- `subagent_type: "general-purpose"`
+- `persona: "reviewer"`
+- `background: false` (blocks until output is returned)
+- `capability_mode: "execute"`
+- `fork_context: false` (put everything needed directly in the prompt)
+
+The TUI Tasks Pane (`Ctrl+T`) is currently the most reliable way to monitor subagent status.
+
 ## Instructions
 
 Follow these phases precisely. Make a todo list first.
@@ -84,7 +97,9 @@ Follow these phases precisely. Make a todo list first.
 
 ### Phase 2 — Parallel Review
 
-Launch **4 parallel specialized reviewer sub-agents** (one for each role defined below: Structural Completeness, Bugs & Logic, Compliance & Conventions, and Historical Context). Each reviewer sub-agent receives:
+Launch **4 specialized reviewer sub-agents** (one for each role: Structural Completeness, Bugs & Logic, Compliance & Conventions, and Historical Context) using the Grok parameters defined in the "Grok vs Claude Execution Notes" section above.
+
+Each reviewer sub-agent receives:
 - The diff (or relevant portions)
 - The changed file list
 - The structural context from Phase 1 (impact analysis results)
@@ -99,19 +114,42 @@ per-file findings arrays required.
 
 Tell each agent:
 
-**Critical Orchestration Rules (Mandatory — required for reliable behavior on Grok):**
+**Critical Orchestration Rules**
 
-You **must** follow these rules exactly. Do not weaken or skip them.
+You **must** produce four specialized reviewer perspectives (Structural Completeness, Bugs & Logic, Compliance & Conventions, and Historical Context). Each reviewer **must** output:
+- A list of findings with file:line references
+- A `## Tools Used` section listing every tool called
+- A `## Files Examined` section listing every changed file the agent actually looked at
 
-1. Use your system's proper sub-agent spawning mechanism (`spawn_subagent` / Task tool). When your harness supports persona injection, launch the reviewers using the `reviewer` persona defined in this skill's `code-reviewer.md`.
-2. Launch **all four reviewers in parallel** using background execution (`run_in_background: true` or the harness equivalent). Never launch them serially.
-3. Capture and store the `subagent_id` (or task ID) returned for each of the four.
-4. **Hard synchronization barrier (non-negotiable):**  
-   You are **forbidden** from launching the Consolidator (Phase 2.5), starting scoring (Phase 3), or producing any final report until you have received the *complete finished output* from **all four** reviewer sub-agents.
-5. Actively wait for every reviewer using the blocking wait primitive your system provides (`get_task_output(id, block: true)` or equivalent). You must not proceed until the last one has returned.
-6. Only after all four have returned their full output (including the required `## Tools Used` and `## Files Examined` sections) may you continue to Phase 2.5.
+**Grok-specific launch instructions (current implementation):**
 
-Claude already waits correctly by default. These explicit rules make the same reliable waiting behavior mandatory for Grok.
+Use `spawn_subagent` with these parameters:
+
+```json
+{
+  "prompt": "<full role instructions + pre-flight context for this reviewer>",
+  "description": "Agent 1 — Structural Completeness Reviewer (PR 142)",
+  "subagent_type": "general-purpose",
+  "persona": "reviewer",
+  "background": false,
+  "fork_context": false,
+  "capability_mode": "execute",
+  "isolation": "none"
+}
+```
+
+Key rules for Grok:
+- `subagent_type` must be `"general-purpose"`.
+- Use `persona: "reviewer"` (this is a persona, not a `subagent_type`).
+- **`background: false`** — this makes the call block until the reviewer finishes and returns output. `background: true` currently creates orphan sessions that are not retrievable via `get_command_or_subagent_output`.
+- `fork_context: false` is usually preferable. Put everything the reviewer needs (diff summary, impact results, CLAUDE.md excerpts, spec path, etc.) directly into the `prompt`.
+- `capability_mode: "execute"` is recommended so reviewers can run `agent-brain-cli`, `gh`, `git`, `pytest`, etc.
+
+**Waiting & Synchronization (Grok reality):**
+- Prefer `background: false` so you receive output directly.
+- If the harness only supports fire-and-forget spawning, launch reviewers sequentially or in small batches and wait for each one.
+- If subagent retrieval genuinely fails ("not found" / no output returned), you may perform one or more of the four perspectives yourself. You **must** explicitly state in your final report and in the Consolidator output: "Subagent mechanism was unreliable — this perspective was executed directly by the main agent."
+- You are forbidden from silently doing all four perspectives yourself while pretending parallel subagents were used.
 
 > **Structural analysis tools (use when investigating dependencies or blast radius):**
 > If Agent Brain CLI is available in this project, you can use:
@@ -326,6 +364,8 @@ Instructions to the consolidator (paste verbatim):
 
 > You are NOT re-evaluating whether the specialists' findings are correct — that's Phase 3.
 > Your job is to find issues the specialists missed because each was looking at one dimension.
+>
+> **Grok note:** If one or more of the four specialist reviewers failed to produce output (subagent retrieval returned "not found" or no usable result), you must still complete the integration work. Clearly document in the "## Integration Notes" section which perspectives were performed directly by the main agent instead of by subagents. Do not hide this fact.
 > Do four things in order:
 >
 > 1. **Cross-instance sweep.** For each specialist finding, check whether the same pattern
