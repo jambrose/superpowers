@@ -16,14 +16,18 @@ Review code changes using parallel review agents with structural analysis.
 
 This skill was originally written for Claude’s `Task` tool. On Grok, `spawn_subagent` creates **independent child sessions** with their own context windows.
 
-**Recommended settings for the four code reviewers (verified working):**
+We are currently experimenting with launching the four reviewers in true parallel using background execution.
+
+**Recommended settings for the four code reviewers:**
 - `subagent_type: "general-purpose"`
 - `persona: "reviewer"`
-- `background: false` (blocks until output is returned)
+- `run_in_background: true`
 - `capability_mode: "execute"`
-- `fork_context: false` (put everything needed directly in the prompt)
+- `fork_context: false` (recommended for stability in current testing)
 
-The TUI Tasks Pane (`Ctrl+T`) is currently the most reliable way to monitor subagent status.
+Launch all four with `run_in_background: true` first, capture the returned subagent_ids, then use blocking waits (`get_command_or_subagent_output` with `block: true`) to retrieve their results.
+
+The TUI Tasks Pane (`Ctrl+T`) is useful for monitoring subagent status.
 
 ## Instructions
 
@@ -116,40 +120,41 @@ Tell each agent:
 
 **Critical Orchestration Rules**
 
-You **must** produce four specialized reviewer perspectives (Structural Completeness, Bugs & Logic, Compliance & Conventions, and Historical Context). Each reviewer **must** output:
+You **must** launch the four specialized reviewer perspectives in parallel using `run_in_background: true`, capture all subagent_ids, and then wait for their results before proceeding.
+
+Each reviewer **must** output:
 - A list of findings with file:line references
 - A `## Tools Used` section listing every tool called
 - A `## Files Examined` section listing every changed file the agent actually looked at
 
-**Grok-specific launch instructions (current implementation):**
+**You must not** launch the reviewers one-by-one with blocking calls if you want them to execute in parallel.
 
-Use `spawn_subagent` with these parameters:
+**Grok-specific launch instructions:**
+
+To achieve parallel execution, launch **all four reviewers together** using `run_in_background: true`.
+
+Use `spawn_subagent` with these parameters for each reviewer:
 
 ```json
 {
   "prompt": "<full role instructions + pre-flight context for this reviewer>",
-  "description": "Agent 1 — Structural Completeness Reviewer (PR 142)",
+  "description": "Agent 1 — Structural Completeness Reviewer",
   "subagent_type": "general-purpose",
   "persona": "reviewer",
-  "background": false,
+  "run_in_background": true,
   "fork_context": false,
-  "capability_mode": "execute",
-  "isolation": "none"
+  "capability_mode": "execute"
 }
 ```
 
-Key rules for Grok:
-- `subagent_type` must be `"general-purpose"`.
-- Use `persona: "reviewer"` (this is a persona, not a `subagent_type`).
-- **`background: false`** — this makes the call block until the reviewer finishes and returns output. `background: true` currently creates orphan sessions that are not retrievable via `get_command_or_subagent_output`.
-- `fork_context: false` is usually preferable. Put everything the reviewer needs (diff summary, impact results, CLAUDE.md excerpts, spec path, etc.) directly into the `prompt`.
-- `capability_mode: "execute"` is recommended so reviewers can run `agent-brain-cli`, `gh`, `git`, `pytest`, etc.
+**Important orchestration steps:**
+1. Issue all four `spawn_subagent` calls with `run_in_background: true` **before** waiting for any of them.
+2. Capture every returned `subagent_id`.
+3. After all four have been launched, wait for their results using `get_command_or_subagent_output(id, block: true)` (or equivalent blocking retrieval).
 
-**Waiting & Synchronization (Grok reality):**
-- Prefer `background: false` so you receive output directly.
-- If the harness only supports fire-and-forget spawning, launch reviewers sequentially or in small batches and wait for each one.
-- If subagent retrieval genuinely fails ("not found" / no output returned), you may perform one or more of the four perspectives yourself. You **must** explicitly state in your final report and in the Consolidator output: "Subagent mechanism was unreliable — this perspective was executed directly by the main agent."
-- You are forbidden from silently doing all four perspectives yourself while pretending parallel subagents were used.
+**Critical rule:** Do not proceed to the Consolidator (Phase 2.5) until you have received output from all four reviewers. The hard synchronization barrier still applies.
+
+If retrieval fails for any reviewer, you may fall back to performing that perspective yourself, but you must clearly document it in the final report and Consolidator output.
 
 > **Structural analysis tools (use when investigating dependencies or blast radius):**
 > If Agent Brain CLI is available in this project, you can use:
