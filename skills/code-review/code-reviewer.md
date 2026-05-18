@@ -86,13 +86,16 @@ If these tools are not available, fall back to grep/glob-based dependency checki
 
 ### Issues
 
-#### Critical (Must Fix)
+Severity MUST be exactly one of: `High`, `Medium`, `Low`. Do NOT use other labels
+(no "Critical", "Warning", "Important", "Minor", "Nit", "P0/P1/P2").
+
+#### High (Must Fix)
 [Bugs, security issues, data loss risks, broken functionality, missing dependent updates]
 
-#### Important (Should Fix)
+#### Medium (Should Fix)
 [Architecture problems, missing features, poor error handling, test gaps]
 
-#### Minor (Nice to Have)
+#### Low (Nice to Have)
 [Code style, optimization opportunities, documentation improvements]
 
 **For each issue:**
@@ -115,7 +118,7 @@ If these tools are not available, fall back to grep/glob-based dependency checki
 **DO:**
 - Use structural analysis tools when available
 - Verify dependents of changed interfaces are updated
-- Categorize by actual severity (not everything is Critical)
+- Categorize by actual severity (not everything is High)
 - Be specific (file:line, not vague)
 - Explain WHY issues matter
 - Acknowledge strengths
@@ -123,7 +126,7 @@ If these tools are not available, fall back to grep/glob-based dependency checki
 
 **DON'T:**
 - Say "looks good" without checking
-- Mark nitpicks as Critical
+- Mark nitpicks as High
 - Give feedback on code you didn't review
 - Be vague ("improve error handling")
 - Skip structural impact analysis when tools are available

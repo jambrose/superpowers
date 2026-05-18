@@ -216,12 +216,14 @@ Focus on significant bugs that will impact functionality in practice. Avoid nitp
 You can use `agent-brain-cli impact` to check whether callers of a changed function handle
 the new behavior correctly.
 
-**Severity classification:** Classify each finding you report:
-- **Critical** — will cause data loss, incorrect behavior, or security vulnerability in production
-- **Warning** — likely to cause problems under specific conditions (edge cases, race conditions, error paths)
-- **Minor** — code quality or minor robustness issue, won't break functionality
+**Severity classification:** Classify each finding you report using exactly one of three labels:
+- **High** — will cause data loss, incorrect behavior, or security vulnerability in production
+- **Medium** — likely to cause problems under specific conditions (edge cases, race conditions, error paths)
+- **Low** — code quality or minor robustness issue, won't break functionality
 
-**Failure-path diagrams:** For every issue you classify as Critical, you MUST produce a
+Do NOT use any other severity label (no "Critical", "Warning", "Minor", "Important", "P0/P1/P2", etc.). The Consolidator validates labels against this list and will normalize off-rubric findings.
+
+**Failure-path diagrams:** For every issue you classify as **High** or **Medium**, you MUST produce a
 mermaid sequence diagram tracing the failure path. The diagram must include:
 1. The entry point (API call, user action, event trigger)
 2. Each function/component the data passes through (with file references)
@@ -230,7 +232,7 @@ mermaid sequence diagram tracing the failure path. The diagram must include:
 
 This diagram is part of your analysis, not just output formatting. If you cannot construct
 the diagram, investigate further — inability to trace the path may indicate the issue is
-not real. Do NOT produce diagrams for non-Critical issues.
+not real. Do NOT produce diagrams for Low issues.
 
 Example:
 ```mermaid
@@ -263,7 +265,7 @@ When async/concurrent patterns are present (any file type):
 - Optimistic UI updates without rollback on failure
 
 Do NOT apply a conditional checklist when its file-type trigger is absent.
-Conditional checklist findings use the same severity scale (Critical/Warning/Minor).
+Conditional checklist findings use the same severity scale (High/Medium/Low).
 
 **Systematic checks** — apply these per-site, not per-diff. For each check below, enumerate
 every site in the diff matching the trigger, then apply the check to each site. Do not stop
@@ -288,7 +290,7 @@ so coverage is auditable.
   required foreign keys). List every DDL statement you evaluated.
 
 Return a list of issues with severity, file:line, and explanation.
-Include the mermaid diagram inline for each Critical issue.
+Include the mermaid diagram inline for each High or Medium issue.
 
 #### Agent 3 — Compliance & Conventions
 
@@ -398,7 +400,11 @@ Instructions to the consolidator (paste verbatim):
 > since the rubric considers the batch together.
 >
 > Return new findings using the same schema as the specialists (file:line, severity, explanation,
-> mermaid diagram if Critical). Do NOT re-report findings the specialists already made.
+> mermaid diagram if High or Medium). Do NOT re-report findings the specialists already made.
+> Severity MUST be exactly one of: `High`, `Medium`, `Low`. If any specialist emitted an off-rubric
+> label (Critical, Warning, Minor, Important, P0/P1/P2, etc.), normalize it in place
+> (`High` = Critical/P0/P1, `Medium` = Warning/Important/P2, `Low` = Minor/Nit) and note
+> `[normalized from <original>]` in the finding's body so the drift is auditable.
 > Include a `## Tools Used` section. Include a `## Integration Notes` section summarizing
 > what you checked and what you explicitly decided was fine (audit trail).
 
@@ -438,6 +444,17 @@ If there are more than 8 issues, split into two parallel batches to stay within 
 to verify the trace is plausible — do the participants (files/functions) exist? Does the
 data flow match the actual code? A well-constructed diagram supports high confidence; a
 diagram that doesn't hold up to scrutiny reduces confidence.
+
+**Scorer output shape:** For each finding, emit `{severity, score, justification}`:
+- `severity` — pass through the Phase 2 specialist's label **verbatim**. Do NOT reclassify
+  during scoring. Severity must be one of `High`, `Medium`, `Low`. If a specialist somehow
+  emitted an off-rubric label that the Consolidator missed, normalize it
+  (`High` = Critical/P0/P1, `Medium` = Warning/Important/P2, `Low` = Minor/Nit) and call
+  it out in justification.
+- `score` — 0-100 per the rubric below. Severity and score are orthogonal: a `High`-severity
+  finding can score 60 (would be bad if real, but unsure → drops at the gate); a `Low`-severity
+  finding can score 90 (definitely real, low impact → keep, low priority).
+- `justification` — 1-2 sentences explaining the score.
 
 Scoring rubric (give this verbatim to each agent):
 
@@ -499,9 +516,12 @@ For each scored issue from Phase 3, create a review comment object:
 {
   "path": "src/file.py",
   "line": 42,
-  "body": "**[Critical]** Brief description\n\nExplanation + suggested fix"
+  "body": "**[High]** Brief description\n\nExplanation + suggested fix"
 }
 ```
+
+The bracket-prefixed severity MUST be exactly one of: `[High]`, `[Medium]`, `[Low]` —
+matching the Phase 2 stamp passed through Phase 3. Do NOT invent other labels.
 
 **Line number rules:**
 - The `line` must appear in the PR diff (a changed or added line). Use `gh pr diff <number>`
@@ -509,7 +529,7 @@ For each scored issue from Phase 3, create a review comment object:
   same hunk and note "Issue is on nearby line N" in the body.
 - If the issue cannot be mapped to any diff line (e.g., a missing-code issue), include it
   in the review body summary instead.
-- Include mermaid failure-path diagrams in the comment body for Critical issues.
+- Include mermaid failure-path diagrams in the comment body for High and Medium issues.
 
 #### Step 4b — Submit the review
 
@@ -543,14 +563,36 @@ For multiple comments, increment the array index: `comments[0]`, `comments[1]`, 
 
 Found N issues (posted as inline comments).
 
-| File | Summary |
-|------|---------|
-| path/to/file.py | What changed, clean or has issues |
+| Severity | File | Note |
+|----------|------|------|
+| High     | path/to/file.py     | One-line description |
+| Medium   | path/to/other.py    | One-line description |
+| Low      | path/to/third.py    | One-line description |
+| Clean    | path/to/clean.py    | No issues |
+
+**Severity column MUST be exactly one of:** `High` / `Medium` / `Low` / `Clean`. Do NOT
+invent other labels (no "Critical", "Warning", "Minor", "Important", "Nit", "P0/P1/P2",
+"Major", "Severe", etc.). The bracket-prefixed inline-comment severity MUST match the
+row's severity for the same finding.
 
 **Confidence: N/5** — [one sentence reasoning]
 
-Generated with [Claude Code](https://claude.ai/code)
+---
+
+**Reviewed by:** <orchestrator-model> · `superpowers:code-review` · <harness-link>
 ```
+
+**Attribution line is REQUIRED — do not omit and do not hardcode another agent's identity.**
+
+- `<orchestrator-model>` — fill in your own model identity (e.g., `Claude Opus 4.7`,
+  `Grok 4 Heavy`, `GPT-5`). Use whichever model is actually running this skill. If you
+  can't confirm your exact version, write your best guess followed by `(unconfirmed)`.
+- `<harness-link>` — markdown link to your runtime:
+  `[Claude Code](https://claude.com/claude-code)`, `[Grok](https://x.ai/)`,
+  `[ChatGPT](https://chatgpt.com/)`, etc. Use the harness that invoked you.
+- `superpowers:code-review` is the only constant — leave it as-is so future-you can
+  distinguish this skill's output from `/ultrareview`, Greptile, or hand-written reviews
+  on the same PR.
 
 **Scope Notes** (advisory, not scored) go in the summary body, not as inline comments:
 ```
@@ -576,20 +618,22 @@ No significant issues found. Checked for: structural completeness, bugs, CLAUDE.
 
 **Structural Impact:** [brief summary]
 
-Generated with [Claude Code](https://claude.ai/code)"
+---
+
+**Reviewed by:** <orchestrator-model> · \`superpowers:code-review\` · <harness-link>"
 ```
 
 #### Local mode output
 
 Local mode outputs the full report to the terminal only (no GitHub API calls).
-Use the same severity grouping (Critical, Warning, Minor) with file:line references.
+Use the same severity grouping (High, Medium, Low) with file:line references.
 
 #### PR Comment Rules
 
 - Keep inline comments focused — one issue per comment, with suggested fix
 - No emojis
 - Use full git SHA in file links (not HEAD or short SHA)
-- Mermaid diagrams go in the inline comment for Critical issues, not the summary
+- Mermaid diagrams go in the inline comment for High and Medium issues, not the summary
 
 ## Integration with Workflows
 

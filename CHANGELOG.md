@@ -1,5 +1,47 @@
 # Changelog
 
+## [5.1.9] - 2026-05-17
+
+### Changed
+
+- **code-review skill: unified severity taxonomy to High / Medium / Low.** Previously the
+  skill prescribed Critical / Warning / Minor (in `SKILL.md`) and Critical / Important / Minor
+  (in `code-reviewer.md`), which caused orchestrators to silently invent High / Medium / Low
+  on the user-facing summary while subagents kept emitting Critical. The label drift killed
+  the diagram trigger (keyed to "Critical" specifically) — diagrams almost never reached the
+  posted summary. Unified taxonomy now used consistently in: Agent 2 severity rubric,
+  conditional checklist, Consolidator handoff, Phase 3 scorer, Phase 4 inline-comment body,
+  Phase 4 summary table, local-mode output, and `code-reviewer.md` headers.
+- **Phase 3 scorer now emits `{severity, score, justification}` per finding.** Severity passes
+  through from Phase 2 verbatim — the scorer no longer reclassifies. Severity and score are
+  declared orthogonal: a High finding can score 60 (drops at gate); a Low finding can score 90
+  (kept, low priority). Removes the leak point where numeric scores got translated back into
+  invented severity labels at output time.
+- **Phase 4 summary table now carries a Severity column.** Was `| File | Summary |` (free-text
+  Summary was where label drift happened); now `| Severity | File | Note |` with explicit
+  constraint that Severity is one of `High` / `Medium` / `Low` / `Clean` plus an anti-pattern
+  list of labels not to invent (Critical, Warning, Minor, Important, Nit, P0/P1/P2, Major,
+  Severe).
+- **Diagram trigger widened from Critical-only to High OR Medium.** The Critical bar was so
+  narrow (data loss / incorrect behavior / security only) that most genuine bugs landed in
+  Warning and lost the diagram. Applied at Agent 2 prompt, Consolidator, Phase 4 line rules,
+  and PR Comment Rules.
+- **Consolidator gained light schema validation.** Off-rubric specialist severities (Critical,
+  Warning, P1, etc.) get normalized in place with a `[normalized from <original>]` audit note
+  so drift becomes visible rather than silent.
+- **Summary body now ends with a REQUIRED, agent-agnostic attribution line.** Was
+  `Generated with [Claude Code]` at the very bottom with no MUST clause; now
+  `**Reviewed by:** <orchestrator-model> · superpowers:code-review · <harness-link>` with
+  explicit instructions for the orchestrator to self-identify. Works for Claude, Grok,
+  ChatGPT, or any future runtime — the orchestrator fills in its own model and harness link.
+
+### Added
+
+- **code-review skill: parallel reviewer spawning on Grok via `run_in_background: true`**
+  ([b1993eb](https://github.com/jambrose/superpowers/commit/b1993eb)) — `.claude-plugin/plugin.json`
+  was bumped to 5.1.9 at that commit but `package.json` + CHANGELOG were not. 5.1.9 now consolidates
+  both that change and the taxonomy work above.
+
 ## [5.1.8] - 2026-05-17
 
 ### Fixed / Improved
